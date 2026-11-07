@@ -103,7 +103,7 @@ Les portages absents sont signalés dans les notes de release.
 
 ### Attendus pour les portages natifs
 
-- **AKA** (`aka/`) : projet ESP-IDF (cible `esp32s3`) utilisant le composant `gamebuino`, et le dossier carte SD `aka/sd/Worms/` contenant `meta.json`, `Picture.png`, `screen.bmp` et les assets du jeu. Le workflow ajoute `firmware.bin` et refuse un firmware dépassant 3 342 336 octets. Variable de dépôt optionnelle `IDF_VERSION` (défaut `v5.4`).
+- **AKA** (`aka/`) : projet ESP-IDF (cible `esp32s3`) sur le modèle d'[Iron-Turnament](https://github.com/Jicehel-Aka/Iron-Turnament) : coquille `GameModule`, composant `gamebuino`, 5 langues, noms de fichiers longs activés (`CONFIG_FATFS_LFN_HEAP=y`), version PC SDL2 dans `aka/pc/`. Le dossier carte SD [`aka/sd/WORMS/`](aka/sd/WORMS) contient déjà `meta.json`, `Picture.png` (320×240) et `screen.bmp` (160×120, 24 bits), générés depuis la bannière et remplaçables. Le workflow ajoute `firmware.bin` et refuse un firmware dépassant 3 342 336 octets. Variable de dépôt optionnelle `IDF_VERSION` (défaut `v5.4`).
 - **META** (`meta/`) : sketch Arduino (`meta/<nom>/<nom>.ino`) compilé avec le core et la bibliothèque *Gamebuino META*. Fichiers optionnels de la carte SD dans `meta/sd/`. Livré sous `WORMS/WORMS.BIN`.
 
 ---
@@ -115,6 +115,7 @@ Les portages absents sont signalés dans les notes de release.
 ├── electron/main.cjs            # Fenêtre Electron (versions PC)
 ├── electron-builder.yml         # Paquets Windows / Linux
 ├── .github/workflows/release.yml# Release à la demande (PC, AKA, META)
+├── aka/sd/WORMS/                # Dossier carte SD AKA (meta.json, Picture.png, screen.bmp)
 ├── metadata.json                # Métadonnées AI Studio (origine du prototype)
 ├── package.json                 # React 19, Tailwind v4, PeerJS, Electron
 ├── src/

@@ -30,7 +30,7 @@ env:
   # Limite de la partition app de la console AKA (0x330000)
   AKA_MAX_FIRMWARE_BYTES: 3342336
   # Nom du dossier du jeu à la racine de la carte SD
-  AKA_SD_FOLDER: Worms
+  AKA_SD_FOLDER: WORMS
   # Gamebuino META : nom de dossier / de .BIN sur la carte SD (8 caractères max)
   META_SD_NAME: WORMS
   META_BOARD_INDEX: https://lab.gamebuino.com/arduino/package_gamebuino_index.json
@@ -132,17 +132,14 @@ jobs:
     needs: [detect, check]
     if: needs.detect.outputs.has_aka == 'true'
     runs-on: ubuntu-latest
-    container:
-      image: espressif/idf:${{ vars.IDF_VERSION || 'v5.4' }}
     steps:
       - uses: actions/checkout@v4
-      - name: Compiler le firmware
-        shell: bash
-        working-directory: aka
-        run: |
-          . "$IDF_PATH/export.sh"
-          idf.py set-target esp32s3
-          idf.py build
+      - name: Compiler le firmware (ESP-IDF)
+        uses: espressif/esp-idf-ci-action@v1
+        with:
+          esp_idf_version: ${{ vars.IDF_VERSION || 'v5.4' }}
+          target: esp32s3
+          path: aka
       - name: Vérifier la taille et assembler le dossier SD
         shell: bash
         env:
@@ -156,7 +153,8 @@ jobs:
             echo "::error::Firmware trop gros pour la console ($size > $AKA_MAX_FIRMWARE_BYTES)"
             exit 1
           fi
-          # Fichiers standard d'un jeu AKA : meta.json, Picture.png, screen.bmp (+ assets propres au jeu)
+          # Fichiers standard d'un jeu AKA (voir Iron-Turnament) : meta.json, Picture.png (320x240),
+          # screen.bmp (160x120, 24 bits) + assets propres au jeu
           for f in meta.json Picture.png screen.bmp; do
             if [ ! -f "aka/sd/$AKA_SD_FOLDER/$f" ]; then
               echo "::error::Fichier manquant : aka/sd/$AKA_SD_FOLDER/$f"
