@@ -1,0 +1,22 @@
+appId: io.github.jicehel.worms-aka-battle
+productName: Worms AKA Battle
+directories:
+  output: release
+files:
+  - dist/**
+  - electron/**
+  - package.json
+artifactName: Worms-AKA-Battle-${version}-${os}-${arch}.${ext}
+win:
+  target:
+    - target: portable
+      arch: x64
+    - target: zip
+      arch: x64
+linux:
+  category: Game
+  target:
+    - target: AppImage
+      arch: x64
+    - target: tar.gz
+      arch: x64
