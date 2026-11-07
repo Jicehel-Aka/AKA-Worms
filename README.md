@@ -2,7 +2,7 @@
 
 Jeu d'artillerie au tour par tour style **Worms** pour 2 joueurs, avec terrain destructible en temps réel. Développé pour la communauté **Gamebuino**.
 
-Le jeu est actuellement une application web (React 19 + Canvas 2D + Vite). Les versions **PC Windows / Linux** sont obtenues en l'emballant dans Electron. Les versions natives **Gamebuino AKA** et **Gamebuino META** sont les cibles du projet mais **ne sont pas encore écrites** : le jeu simule pour l'instant leurs écrans (châssis, 320×240 et 160×128, 25/50/60 FPS) dans le navigateur.
+Le jeu est actuellement une application web (React 19 + Canvas 2D + Vite). Les versions **PC Windows / Linux** sont obtenues en l'emballant dans Electron. La version native **Gamebuino AKA** est la cible du projet mais **n'est pas encore écrite** : le jeu simule pour l'instant l'écran de la console (châssis, 320×240, 25/50/60 FPS) dans le navigateur. Une version Gamebuino META a été étudiée puis abandonnée (32 Ko de RAM, ce serait un projet à part).
 
 ---
 
@@ -14,22 +14,20 @@ Le jeu est actuellement une application web (React 19 + Canvas 2D + Vite). Les v
 | **PC Linux** | ✅ | `.AppImage` + `.tar.gz` (Electron) |
 | **Navigateur (PC / mobile)** | ✅ | `npm run dev` ou `npm run build`, commandes tactiles intégrées. Pas d'APK Android. |
 | **Gamebuino AKA** | 🚧 | Portage natif ESP-IDF à écrire (dossier `aka/`). Le workflow le construit dès qu'il existe. |
-| **Gamebuino META** | 🚧 | Portage natif Arduino à écrire (dossier `meta/`). Le workflow le construit dès qu'il existe. |
 
 ### Modes de jeu
 
-| Mode | PC / Web | AKA (cible) | META (cible) |
-| :--- | :---: | :---: | :---: |
-| **Passe & Joue** (2 joueurs, même écran, tour à tour) | ✅ | prévu | prévu (terrain réduit) |
-| **Solo contre IA** (calcul balistique + vent) | ✅ | prévu | prévu (IA simplifiée) |
-| **En ligne P2P** (code de salon) | ⚠️ expérimental | possible via Wi-Fi | ❌ pas de Wi-Fi |
+| Mode | PC / Web | AKA (cible) |
+| :--- | :---: | :---: |
+| **Passe & Joue** (2 joueurs, même écran, tour à tour) | ✅ | prévu |
+| **Solo contre IA** (calcul balistique + vent) | ✅ | prévu |
+| **En ligne P2P** (code de salon) | ⚠️ expérimental | possible via Wi-Fi |
 
 > **Mode en ligne** : l'écran de salon et la connexion PeerJS existent, mais la partie n'est pas jouable de bout en bout. Seuls la visée, le saut et le choix d'arme sont envoyés ; le tir, la marche, la fin de tour ne le sont pas, et l'invité ignore la configuration envoyée par l'hôte (cartes, positions des vers et vent tirés au hasard de chaque côté). `BroadcastChannel` ne sert qu'à tester entre deux onglets du même navigateur. À terminer avant de l'annoncer.
 
 ### Contraintes du portage natif
 
 - **AKA (ESP32-S3, 320×240, PSRAM)** : la carte 1600×900 tient en mémoire (1 octet/pixel ≈ 1,4 Mo, ou 180 Ko en masque 1 bit). Le firmware doit rester **sous 0x330000 octets (3 342 336)**.
-- **META (SAMD21, 32 Ko de RAM, 256 Ko de flash, 160×128)** : carte à réduire fortement (masque 1 bit basse résolution), pas de réseau, nombre d'armes et de particules à limiter.
 
 ---
 
@@ -49,7 +47,7 @@ Le jeu est actuellement une application web (React 19 + Canvas 2D + Vite). Les v
 
 Les touches de déplacement/visée utilisent les **positions physiques** des touches : `W A S D` sur clavier QWERTY correspondent à `Z Q S D` sur clavier AZERTY.
 
-| Action | Clavier | Écran tactile | Console AKA / META (cible) |
+| Action | Clavier | Écran tactile | Console AKA (cible) |
 | :--- | :--- | :--- | :--- |
 | **Marcher** | `◄ ►` ou `A / D` (QWERTY) = `Q / D` (AZERTY) | boutons `◀ ▶` | D-Pad `◀ ▶` |
 | **Viser** | `▲ ▼` ou `W / S` (QWERTY) = `Z / S` (AZERTY) | boutons `▲ ▼` | D-Pad `▲ ▼` |
@@ -96,15 +94,14 @@ Dans GitHub : **Actions → Release → Run workflow**, saisir une version (`v1.
 
 1. vérifie les types et le build web ;
 2. construit **PC Windows** (`.exe` portable + `.zip`) et **PC Linux** (`.AppImage` + `.tar.gz`) ;
-3. construit **AKA** si `aka/CMakeLists.txt` existe, **META** si `meta/` contient un sketch `.ino` ;
+3. construit **AKA** si `aka/CMakeLists.txt` existe ;
 4. crée le tag et une seule release avec tous les fichiers.
 
-Les portages absents sont signalés dans les notes de release.
+Un portage absent est signalé dans les notes de release.
 
-### Attendus pour les portages natifs
+### Attendus pour le portage natif AKA
 
 - **AKA** (`aka/`) : projet ESP-IDF (cible `esp32s3`) sur le modèle d'[Iron-Turnament](https://github.com/Jicehel-Aka/Iron-Turnament) : coquille `GameModule`, composant `gamebuino`, 5 langues, noms de fichiers longs activés (`CONFIG_FATFS_LFN_HEAP=y`), version PC SDL2 dans `aka/pc/`. Le dossier carte SD [`aka/sd/WORMS/`](aka/sd/WORMS) contient déjà `meta.json`, `Picture.png` (320×240) et `screen.bmp` (160×120, 24 bits), générés depuis la bannière et remplaçables. Le workflow ajoute `firmware.bin` et refuse un firmware dépassant 3 342 336 octets. Variable de dépôt optionnelle `IDF_VERSION` (défaut `v5.4`).
-- **META** (`meta/`) : sketch Arduino (`meta/<nom>/<nom>.ino`) compilé avec le core et la bibliothèque *Gamebuino META*. Fichiers optionnels de la carte SD dans `meta/sd/`. Livré sous `WORMS/WORMS.BIN`.
 
 ---
 
@@ -114,7 +111,7 @@ Les portages absents sont signalés dans les notes de release.
 ├── index.html                   # Point d'entrée
 ├── electron/main.cjs            # Fenêtre Electron (versions PC)
 ├── electron-builder.yml         # Paquets Windows / Linux
-├── .github/workflows/release.yml# Release à la demande (PC, AKA, META)
+├── .github/workflows/release.yml# Release à la demande (PC, AKA)
 ├── aka/sd/WORMS/                # Dossier carte SD AKA (meta.json, Picture.png, screen.bmp)
 ├── metadata.json                # Métadonnées AI Studio (origine du prototype)
 ├── package.json                 # React 19, Tailwind v4, PeerJS, Electron

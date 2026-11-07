@@ -1,7 +1,7 @@
 name: Release
 
 # Release à la demande (Actions > Release > Run workflow).
-# Construit : PC Windows, PC Linux, Gamebuino AKA (si aka/ existe) et Gamebuino META (si meta/ existe),
+# Construit : PC Windows, PC Linux et Gamebuino AKA (si aka/ existe),
 # puis publie tout dans une seule release GitHub.
 on:
   workflow_dispatch:
@@ -31,9 +31,6 @@ env:
   AKA_MAX_FIRMWARE_BYTES: 3342336
   # Nom du dossier du jeu à la racine de la carte SD
   AKA_SD_FOLDER: WORMS
-  # Gamebuino META : nom de dossier / de .BIN sur la carte SD (8 caractères max)
-  META_SD_NAME: WORMS
-  META_BOARD_INDEX: https://lab.gamebuino.com/arduino/package_gamebuino_index.json
 
 jobs:
   detect:
@@ -43,8 +40,6 @@ jobs:
       version: ${{ steps.v.outputs.version }}
       semver: ${{ steps.v.outputs.semver }}
       has_aka: ${{ steps.d.outputs.has_aka }}
-      has_meta: ${{ steps.d.outputs.has_meta }}
-      meta_sketch: ${{ steps.d.outputs.meta_sketch }}
     steps:
       - uses: actions/checkout@v4
       - name: Valider la version
@@ -62,18 +57,10 @@ jobs:
           fi
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "semver=${VERSION#v}" >> "$GITHUB_OUTPUT"
-      - name: Détecter les portages natifs
+      - name: Détecter le portage natif AKA
         id: d
         run: |
           if [ -f aka/CMakeLists.txt ]; then echo "has_aka=true" >> "$GITHUB_OUTPUT"; else echo "has_aka=false" >> "$GITHUB_OUTPUT"; fi
-          sketch="$(find meta -maxdepth 2 -name '*.ino' 2>/dev/null | head -n1 || true)"
-          if [ -n "$sketch" ]; then
-            echo "has_meta=true" >> "$GITHUB_OUTPUT"
-            echo "meta_sketch=$(dirname "$sketch")" >> "$GITHUB_OUTPUT"
-          else
-            echo "has_meta=false" >> "$GITHUB_OUTPUT"
-            echo "meta_sketch=" >> "$GITHUB_OUTPUT"
-          fi
 
   check:
     name: Vérification (types + build web)
@@ -171,51 +158,14 @@ jobs:
           path: Worms-AKA-Battle-*-AKA-SD.zip
           if-no-files-found: error
 
-  meta:
-    name: Gamebuino META
-    needs: [detect, check]
-    if: needs.detect.outputs.has_meta == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: arduino/setup-arduino-cli@v2
-      - name: Installer le core et la bibliothèque Gamebuino META
-        run: |
-          arduino-cli config init --overwrite
-          arduino-cli config add board_manager.additional_urls "$META_BOARD_INDEX"
-          arduino-cli core update-index
-          arduino-cli core install arduino:samd
-          arduino-cli core install gamebuino:samd
-          arduino-cli lib install "Gamebuino META"
-      - name: Compiler
-        env:
-          SKETCH: ${{ needs.detect.outputs.meta_sketch }}
-          SEMVER: ${{ needs.detect.outputs.semver }}
-        run: |
-          fqbn="$(arduino-cli board listall gamebuino --format json | python3 -c "import json,sys;b=json.load(sys.stdin)['boards'];print(next(x['fqbn'] for x in b if x['fqbn'].startswith('gamebuino:')))")"
-          echo "FQBN : $fqbn"
-          arduino-cli compile --fqbn "$fqbn" --output-dir build "$SKETCH"
-          bin="$(ls build/*.bin | grep -v bootloader | head -n1)"
-          mkdir -p "out/$META_SD_NAME"
-          cp "$bin" "out/$META_SD_NAME/$META_SD_NAME.BIN"
-          # Fichiers optionnels (icône, etc.) placés dans meta/sd/
-          if [ -d meta/sd ]; then cp -r meta/sd/. "out/$META_SD_NAME/"; fi
-          cd out && zip -r "../Worms-AKA-Battle-$SEMVER-META-SD.zip" "$META_SD_NAME"
-      - uses: actions/upload-artifact@v4
-        with:
-          name: meta
-          path: Worms-AKA-Battle-*-META-SD.zip
-          if-no-files-found: error
-
   release:
     name: Publier la release
-    needs: [detect, check, desktop, aka, meta]
+    needs: [detect, check, desktop, aka]
     if: >-
       ${{ !cancelled()
       && needs.check.result == 'success'
       && needs.desktop.result == 'success'
-      && contains(fromJSON('["success","skipped"]'), needs.aka.result)
-      && contains(fromJSON('["success","skipped"]'), needs.meta.result) }}
+      && contains(fromJSON('["success","skipped"]'), needs.aka.result) }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -229,7 +179,6 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ needs.detect.outputs.version }}
           HAS_AKA: ${{ needs.detect.outputs.has_aka }}
-          HAS_META: ${{ needs.detect.outputs.has_meta }}
           PRERELEASE: ${{ inputs.prerelease }}
           DRAFT: ${{ inputs.draft }}
         run: |
@@ -244,11 +193,6 @@ jobs:
               echo "- **Gamebuino AKA** : \`*-AKA-SD.zip\`, à décompresser à la racine de la carte SD (dossier \`$AKA_SD_FOLDER/\` avec firmware.bin, meta.json, Picture.png, screen.bmp)"
             else
               echo "- **Gamebuino AKA** : non inclus (portage natif pas encore présent dans le dépôt)"
-            fi
-            if [ "$HAS_META" = "true" ]; then
-              echo "- **Gamebuino META** : \`*-META-SD.zip\`, à décompresser à la racine de la carte SD (dossier \`$META_SD_NAME/\`)"
-            else
-              echo "- **Gamebuino META** : non inclus (portage natif pas encore présent dans le dépôt)"
             fi
           } > notes.md
           args=(--repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "Worms AKA Battle $VERSION" --notes-file notes.md)
