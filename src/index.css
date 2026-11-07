@@ -1,0 +1,50 @@
+@import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
+
+@layer utilities {
+  .font-retro {
+    font-family: 'Press Start 2P', monospace;
+  }
+  .font-sans {
+    font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  }
+  .font-mono {
+    font-family: 'Space Mono', monospace;
+  }
+}
+
+/* Gamebuino AKA 320x240 & META 160x128 Pixel Shader */
+.lcd-scanlines {
+  background: linear-gradient(
+    rgba(18, 16, 24, 0) 50%,
+    rgba(0, 0, 0, 0.28) 50%
+  ), linear-gradient(
+    90deg,
+    rgba(255, 0, 0, 0.03),
+    rgba(0, 255, 0, 0.02),
+    rgba(0, 0, 255, 0.03)
+  );
+  background-size: 100% 3px, 3px 100%;
+  pointer-events: none;
+}
+
+/* RGB565 16-bit Full Color Simulation */
+.rgb565-filter {
+  filter: contrast(1.15) saturate(1.25);
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}
+
+/* Pixel Grid for Gamebuino screens */
+.lcd-pixel-grid {
+  background-image: 
+    radial-gradient(circle, rgba(0, 0, 0, 0.22) 1px, transparent 1px);
+  background-size: 3px 3px;
+}
+
+/* Prevent double-tap zoom on game touch controls */
+.touch-no-zoom {
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+}

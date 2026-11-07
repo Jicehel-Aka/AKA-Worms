@@ -1,0 +1,6 @@
+{
+  "name": "Worms AKA Battle",
+  "description": "Jeu d'artillerie tactique multijoueur 2 joueurs style Worms, compatible PC, Android et console Gamebuino AKA avec zooms rapides et cartes destructibles.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
