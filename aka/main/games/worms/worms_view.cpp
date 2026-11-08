@@ -232,7 +232,7 @@ void draw_worm(const Game& g, const State& s, const Cam& cam, int t, int i, uint
     graphics_fill_rect_raw(x - 2, y - 4, 5, 5, dark);            // corps
     graphics_fill_rect_raw(x - 1, y - 3, 3, 1, body);
     // PV au-dessus du ver
-    char b[8]; snprintf(b, sizeof b, "%d", (int)w.hp);
+    char b[16]; snprintf(b, sizeof b, "%d", (int)w.hp);
     const int tw = graphics_text_width(b);
     draw_text_small(x - tw / 2, y - 21, b, active ? C_WHITE : C_TEAM[t]);
     if (active) {                                                // fleche qui rebondit
@@ -290,7 +290,7 @@ void draw_fx(const Game& g, const State& s, const Cam& cam) {
     }
     for (const DmgText& t : g.txt) {
         if (!t.life) continue;
-        char b[8]; snprintf(b, sizeof b, "%d", (int)t.val);
+        char b[16]; snprintf(b, sizeof b, "%d", (int)t.val);
         const int x = cam.sx(t.x) - graphics_text_width(b) / 2, y = cam.sy(t.y);
         if (y < AREA_Y || y > AREA_Y + AREA_H - 8) continue;
         graphics_draw_text_raw(x + 1, y + 1, b, C_BLACK);
@@ -353,7 +353,7 @@ void draw_top_bar(const Game& g, const State& s) {
     draw_team_block(g, s, 0, true);
     draw_team_block(g, s, 1, false);
     // chrono
-    char b[8];
+    char b[16];
     const int sec = std::max(0, (g.turn_ticks + 59) / 60);
     snprintf(b, sizeof b, "%d", g.phase == PH_PLAY ? sec : 0);
     const bool urgent = g.phase == PH_PLAY && !g.fired && sec <= 5;

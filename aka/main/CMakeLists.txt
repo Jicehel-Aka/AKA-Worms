@@ -31,3 +31,6 @@ idf_component_register(
     REQUIRES
         gamebuino nvs_flash app_update esp_partition esp_system fatfs esp_hw_support
 )
+
+# Les libelles traduits peuvent depasser les tampons d'affichage : snprintf tronque proprement, ce n'est pas une erreur.
+target_compile_options(${COMPONENT_LIB} PRIVATE -Wno-format-truncation)
