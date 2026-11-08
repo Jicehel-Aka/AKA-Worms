@@ -417,94 +417,162 @@ static void update_worm_physics(Game& g, int t, int i) {
 }
 
 // ---------------------------------------------------------------------------------------------------
-// Generation des cartes
+// Generation des cartes — portage fidele de terrain.ts
+// Les coordonnees sont celles du prototype (carte 1600x900) ; K les ramene a 800x450.
+// Chaque forme est dessinee avec sa matiere (couleur du prototype) ; MAT_AIR creuse.
 // ---------------------------------------------------------------------------------------------------
-static void fill_cols(Game& g, const int16_t* h) {
-    for (int x = 0; x < W; ++x)
-        for (int y = std::max(0, (int)h[x]); y < H; ++y) g.terrain[y * W + x] = 1;
+static constexpr float K = 0.5f;
+
+static inline int px(float v) { return (int)lroundf(v * K); }
+
+static void put(Game& g, int x, int y, uint8_t m) {
+    if (x >= 0 && x < W && y >= 0 && y < H) g.terrain[y * W + x] = m;
 }
-static void fill_ellipse(Game& g, float cx, float cy, float rx, float ry, uint8_t v, bool flat_top = false) {
-    for (int y = (int)(cy - ry); y <= (int)(cy + ry); ++y) {
-        if (y < 0 || y >= H) continue;
-        for (int x = (int)(cx - rx); x <= (int)(cx + rx); ++x) {
-            if (x < 0 || x >= W) continue;
-            float ux = (x - cx) / rx, uy = (y - cy) / ry;
-            float ex = flat_top ? ux * ux * ux * ux : ux * ux;
-            if (ex + uy * uy <= 1.f) g.terrain[y * W + x] = v;
+// Rectangle (x, y, largeur, hauteur) en coordonnees du prototype
+static void rect_f(Game& g, float x, float y, float w, float h, uint8_t m) {
+    const int x0 = px(x), x1 = px(x + w), y0 = px(y), y1 = px(y + h);
+    for (int yy = y0; yy < y1; ++yy) for (int xx = x0; xx < x1; ++xx) put(g, xx, yy, m);
+}
+// Ellipse pleine
+static void ellipse_f(Game& g, float cx, float cy, float rx, float ry, uint8_t m) {
+    const float fx = cx * K, fy = cy * K, frx = rx * K, fry = ry * K;
+    for (int y = (int)floorf(fy - fry); y <= (int)ceilf(fy + fry); ++y)
+        for (int x = (int)floorf(fx - frx); x <= (int)ceilf(fx + frx); ++x) {
+            const float ux = ((float)x + 0.5f - fx) / frx, uy = ((float)y + 0.5f - fy) / fry;
+            if (ux * ux + uy * uy <= 1.f) put(g, x, y, m);
         }
-    }
 }
-static void fill_rect(Game& g, int x0, int y0, int x1, int y1, uint8_t v) {
-    for (int y = std::max(0, y0); y <= std::min(H - 1, y1); ++y)
-        for (int x = std::max(0, x0); x <= std::min(W - 1, x1); ++x) g.terrain[y * W + x] = v;
+// Demi-disque superieur (arche) : arc de PI a 0 dans le sens horaire du canvas = moitie haute
+static void half_disc_top_f(Game& g, float cx, float cy, float r, uint8_t m) {
+    const float fx = cx * K, fy = cy * K, fr = r * K;
+    for (int y = (int)floorf(fy - fr); y < (int)ceilf(fy); ++y)
+        for (int x = (int)floorf(fx - fr); x <= (int)ceilf(fx + fr); ++x) {
+            const float dx = (float)x + 0.5f - fx, dy = (float)y + 0.5f - fy;
+            if (dx * dx + dy * dy <= fr * fr) put(g, x, y, m);
+        }
 }
-static float frand(Game& g) { return (float)(rnd(g) % 10000) / 10000.f; }
-
-static void gen_islands(Game& g) {
-    int n = 5;
-    for (int i = 0; i < n; ++i) {
-        float cx = 80.f + i * 160.f + rnd_range(g, -18, 18);
-        float rx = 58.f + frand(g) * 38.f, ry = 40.f + frand(g) * 34.f;
-        float cy = 290.f + rnd_range(g, -45, 25);
-        fill_ellipse(g, cx, cy, rx, ry, 1, true);
-    }
-    fill_ellipse(g, 400.f, 215.f, 40.f, 10.f, 1, true);          // plateforme centrale
-}
-static void gen_canyon(Game& g) {
-    static int16_t h[W];
-    float ph = frand(g) * 6.f;
-    for (int x = 0; x < W; ++x) {
-        float fx = (float)x;
-        float base;
-        if (fx < 220) base = 190; else if (fx < 330) base = 190 + (fx - 220) / 110.f * 180.f;
-        else if (fx < 470) base = 370; else if (fx < 580) base = 370 - (fx - 470) / 110.f * 180.f;
-        else base = 190;
-        h[x] = (int16_t)(base + 5.f * sinf(fx * 0.05f + ph));
-    }
-    fill_cols(g, h);
-    fill_ellipse(g, 330, 275, 34, 8, 1, true);
-    fill_ellipse(g, 470, 275, 34, 8, 1, true);
-}
-static void gen_fortress(Game& g) {
-    static int16_t h[W];
-    for (int x = 0; x < W; ++x) h[x] = (x < 260 || x > 540) ? 290 : 372;
-    fill_cols(g, h);
-    fill_rect(g, 40, 215, 72, 290, 1);
-    fill_rect(g, 728, 215, 760, 290, 1);
-    fill_rect(g, 388, 190, 412, 372, 1);
-    fill_ellipse(g, 400, 170, 70, 9, 1, true);
-    carve(g, 400, 300, 12);                                       // meurtriere
-}
-static void gen_volcano(Game& g) {
-    static int16_t h[W];
-    for (int x = 0; x < W; ++x) {
-        float v = 110.f + fabsf(x - 400.f) * 0.9f;
-        h[x] = (int16_t)std::min(v, 345.f);
-    }
-    fill_cols(g, h);
-    fill_ellipse(g, 400, 112, 30, 16, 0);
-    for (int x = 380; x <= 420; ++x) for (int y = 100; y < 160; ++y) (void)x, (void)y;
-}
-static void gen_procedural(Game& g) {
-    static int16_t h[W];
-    float p1 = frand(g) * 6.28f, p2 = frand(g) * 6.28f, p3 = frand(g) * 6.28f;
-    for (int x = 0; x < W; ++x) {
-        float v = 270.f + 45.f * sinf(x * 0.011f + p1) + 28.f * sinf(x * 0.027f + p2) + 14.f * sinf(x * 0.061f + p3);
-        h[x] = (int16_t)std::min(std::max(v, 150.f), 385.f);
-    }
-    fill_cols(g, h);
-    for (int i = 0; i < 3; ++i) carve(g, rnd_range(g, 80, 720), rnd_range(g, 260, 380), rnd_range(g, 18, 34));
-    for (int i = 0; i < 3; ++i)
-        fill_ellipse(g, (float)rnd_range(g, 100, 700), (float)rnd_range(g, 140, 220), 20.f + frand(g) * 25.f, 6.f + frand(g) * 6.f, 1, true);
-}
-
-static void add_grass(Game& g) {
-    for (int x = 0; x < W; ++x)
-        for (int y = 0; y < H; ++y) {
-            if (g.terrain[y * W + x] && (y == 0 || !g.terrain[(y - 1) * W + x])) {
-                for (int k = 0; k < 3 && y + k < H && g.terrain[(y + k) * W + x]; ++k) g.terrain[(y + k) * W + x] = 2;
+// Polygone quelconque (remplissage par lignes, regle pair/impair)
+static void poly_f(Game& g, const float* pts, int n, uint8_t m) {
+    float xs[96];
+    float ymin = 1e9f, ymax = -1e9f;
+    for (int i = 0; i < n; ++i) { ymin = std::min(ymin, pts[2 * i + 1] * K); ymax = std::max(ymax, pts[2 * i + 1] * K); }
+    for (int y = std::max(0, (int)floorf(ymin)); y <= std::min(H - 1, (int)ceilf(ymax)); ++y) {
+        const float sy = (float)y + 0.5f;
+        int c = 0;
+        for (int i = 0; i < n; ++i) {
+            const int j = (i + 1) % n;
+            const float x0 = pts[2 * i] * K, y0 = pts[2 * i + 1] * K, x1 = pts[2 * j] * K, y1 = pts[2 * j + 1] * K;
+            if ((y0 <= sy && y1 > sy) || (y1 <= sy && y0 > sy)) {
+                if (c < 96) xs[c++] = x0 + (sy - y0) / (y1 - y0) * (x1 - x0);
             }
         }
+        std::sort(xs, xs + c);
+        for (int k = 0; k + 1 < c; k += 2)
+            for (int x = (int)lroundf(xs[k]); x < (int)lroundf(xs[k + 1]); ++x) put(g, x, y, m);
+    }
+}
+// Courbe de Bezier cubique fermee par sa corde (comme moveTo/bezierCurveTo/lineTo du prototype)
+static void bezier_f(Game& g, float x0, float y0, float c1x, float c1y, float c2x, float c2y, float x1, float y1, uint8_t m) {
+    float pts[2 * 33];
+    const int N = 32;
+    for (int i = 0; i <= N; ++i) {
+        const float t = (float)i / N, u = 1.f - t;
+        pts[2 * i]     = u * u * u * x0 + 3 * u * u * t * c1x + 3 * u * t * t * c2x + t * t * t * x1;
+        pts[2 * i + 1] = u * u * u * y0 + 3 * u * u * t * c1y + 3 * u * t * t * c2y + t * t * t * y1;
+    }
+    poly_f(g, pts, N + 1, m);
+}
+
+static void gen_islands(Game& g) {
+    struct Isl { float x, y, w, h; };
+    static const Isl isl[4] = {
+        { 180, 520, 260, 180 }, { 540, 440, 320, 220 }, { 960, 480, 280, 200 }, { 1320, 540, 220, 170 } };
+    for (const Isl& i : isl)                                   // base de terre sombre
+        bezier_f(g, i.x - i.w / 2, i.y, i.x - i.w / 2 + 30, i.y + i.h, i.x + i.w / 2 - 30, i.y + i.h, i.x + i.w / 2, i.y, MAT_DIRT_DARK);
+    for (const Isl& i : isl)                                   // couche de terre plus claire
+        bezier_f(g, i.x - i.w / 2 + 15, i.y, i.x - i.w / 4, i.y + i.h * 0.7f, i.x + i.w / 4, i.y + i.h * 0.7f, i.x + i.w / 2 - 15, i.y, MAT_DIRT);
+    for (const Isl& i : isl) ellipse_f(g, i.x, i.y, i.w / 2, 28, MAT_GRASS);          // calotte d'herbe
+    for (const Isl& i : isl)                                                           // brins d'herbe
+        for (int k = 0; k < (int)i.w; k += 8) {
+            const float h = 4 + sinf((float)k * 0.5f) * 4;
+            rect_f(g, i.x - i.w / 2 + k, i.y - 12 - h, 5, h + 14, MAT_GRASS_HI);
+        }
+    rect_f(g, 300, 500, 100, 10, MAT_WOOD);                    // ponts
+    rect_f(g, 690, 450, 130, 10, MAT_WOOD);
+    rect_f(g, 1090, 490, 120, 10, MAT_WOOD);
+    ellipse_f(g, 760, 410, 24, 24, MAT_ROCK);                  // pitons rocheux
+    ellipse_f(g, 360, 470, 18, 18, MAT_ROCK);
+}
+
+static void gen_canyon(Game& g) {
+    static const float left[]  = { 0,250, 340,280, 280,500, 400,680, 0,780 };
+    static const float right[] = { 1600,260, 1240,310, 1300,540, 1200,700, 1600,780 };
+    poly_f(g, left, 5, MAT_SANDSTONE);
+    poly_f(g, right, 5, MAT_SANDSTONE);
+    ellipse_f(g, 800, 560, 260, 60, MAT_ARCH);
+    ellipse_f(g, 800, 700, 320, 50, MAT_LOWER);
+    ellipse_f(g, 800, 620, 140, 45, MAT_AIR);                  // cavernes
+    ellipse_f(g, 200, 420, 90, 60, MAT_AIR);
+    ellipse_f(g, 1400, 460, 100, 70, MAT_AIR);
+    rect_f(g, 0, 240, 340, 14, MAT_SAND);                      // croute de sable
+    rect_f(g, 1240, 300, 360, 14, MAT_SAND);
+    rect_f(g, 560, 520, 480, 14, MAT_SAND);
+}
+
+static void gen_fortress(Game& g) {
+    rect_f(g, 150, 320, 240, 420, MAT_STONE);                  // tour gauche + creneaux
+    for (int i = 0; i < 240; i += 40) rect_f(g, 150.f + i, 280, 25, 40, MAT_STONE);
+    rect_f(g, 1210, 320, 240, 420, MAT_STONE);                 // tour droite
+    for (int i = 0; i < 240; i += 40) rect_f(g, 1210.f + i, 280, 25, 40, MAT_STONE);
+    rect_f(g, 380, 520, 840, 120, MAT_STONE2);                 // rempart central
+    rect_f(g, 650, 420, 300, 30, MAT_STONE3);                  // plateforme
+    half_disc_top_f(g, 800, 640, 90, MAT_AIR);                 // tunnel en arche
+    rect_f(g, 710, 630, 180, 80, MAT_AIR);
+    rect_f(g, 230, 420, 40, 70, MAT_AIR);                      // fenetres
+    rect_f(g, 1330, 420, 40, 70, MAT_AIR);
+    rect_f(g, 150, 275, 240, 8, MAT_MOSS);                     // mousse
+    rect_f(g, 1210, 275, 240, 8, MAT_MOSS);
+    rect_f(g, 380, 515, 840, 8, MAT_MOSS);
+}
+
+static void gen_volcano(Game& g) {
+    static const float left[]  = { 0,760, 550,420, 680,480, 650,760 };
+    static const float right[] = { 1600,760, 1050,420, 920,480, 950,760 };
+    poly_f(g, left, 4, MAT_BASALT);
+    poly_f(g, right, 4, MAT_BASALT);
+    ellipse_f(g, 800, 540, 180, 60, MAT_CRAG);                 // pic flottant central
+    rect_f(g, 520, 415, 560, 10, MAT_LAVA);                    // veines de magma
+    rect_f(g, 700, 535, 200, 8, MAT_LAVA2);
+    rect_f(g, 0, 750, 550, 12, MAT_ASH);                       // cendres
+    rect_f(g, 1050, 750, 550, 12, MAT_ASH);
+}
+
+static void gen_procedural(Game& g, float seed) {
+    // Paysage sinusoidal : polyligne tous les 10 px (monde du prototype), interpolee
+    static float hy[161];
+    for (int i = 0; i <= 160; ++i) {
+        const float x = (float)(i * 10);
+        hy[i] = 580.f + sinf(x / 300.f + seed) * 110.f + cosf(x / 140.f + seed * 1.5f) * 60.f + sinf(x / 60.f + seed * 2.f) * 25.f;
+    }
+    for (int xs = 0; xs < W; ++xs) {
+        const float ox = (float)xs / K;
+        const int i = std::min(159, (int)(ox / 10.f));
+        const float t = ox / 10.f - (float)i;
+        const float y = hy[i] + (hy[i + 1] - hy[i]) * t;
+        for (int ys = std::max(0, (int)lroundf(y * K)); ys < H; ++ys) put(g, xs, ys, MAT_ROCK);
+    }
+    for (int i = 0; i < 4; ++i) {                              // grottes
+        const float cx = 250.f + i * 360.f + sinf(seed + (float)i) * 80.f;
+        const float cy = 620.f + cosf(seed * 2.f + (float)i) * 60.f;
+        const float r = 60.f + (float)(i % 2) * 20.f;
+        ellipse_f(g, cx, cy, r, r, MAT_AIR);
+    }
+    for (int x = 0; x < 1600; x += 6) {                        // herbe en surface
+        const int xs = px((float)x);
+        int sy = -1;
+        for (int ys = 100; ys < H; ++ys) if (g.terrain[ys * W + std::min(W - 1, xs)]) { sy = ys; break; }
+        if (sy >= 0 && sy < WATER_Y) rect_f(g, (float)x, (float)sy / K, 6, 12, MAT_GRASS);
+    }
 }
 
 static bool find_spot(Game& g, int team, int idx, int n) {
@@ -596,14 +664,8 @@ void start(Game& g, const MatchOptions& o) {
         case MAP_CANYON:    gen_canyon(g); break;
         case MAP_FORTRESS:  gen_fortress(g); break;
         case MAP_VOLCANO:   gen_volcano(g); break;
-        default:            gen_procedural(g); break;
+        default:            gen_procedural(g, (float)(rnd(g) % 100000u) / 1000.f); break;
     }
-    // La terre s'arrete au-dessus de l'eau (fond irregulier) : tout ce qui tombe plus bas se noie.
-    for (int x = 0; x < W; ++x) {
-        const int bottom = 398 + (int)(5.f * sinf((float)x * 0.05f));
-        for (int y = bottom; y < H; ++y) g.terrain[y * W + x] = 0;
-    }
-    add_grass(g);
     const int n = g.opt.worms_per_team;
     for (int t = 0; t < TEAMS; ++t) {
         for (int w = 0; w < WP_COUNT; ++w) g.teams[t].ammo[w] = kWeapons[w].ammo;
@@ -612,7 +674,7 @@ void start(Game& g, const MatchOptions& o) {
             if (!find_spot(g, t, i, n)) {
                 // dernier recours : plateforme sous les pieds
                 int x = t == 0 ? 60 + i * 35 : W - 60 - i * 35;
-                fill_rect(g, x - 15, 250, x + 15, 262, 1);
+                for (int yy = 250; yy < 262; ++yy) for (int xx = x - 15; xx <= x + 15; ++xx) put(g, xx, yy, MAT_STONE);
                 Worm& w = g.worms[t][i];
                 w = Worm{}; w.x = (float)x; w.y = 249.f; w.hp = (int16_t)g.opt.hp;
                 w.facing = t == 0 ? 1 : -1; w.aim = 35.f; w.alive = true;

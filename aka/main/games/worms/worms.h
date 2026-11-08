@@ -30,6 +30,13 @@ constexpr int MAX_TXT = 8;
 constexpr int WORM_H = 10;               // hauteur du corps (pixels)
 constexpr int RETREAT_TICKS = 180;       // 3 s pour fuir apres un tir
 
+// Matieres du terrain (un octet par pixel ; 0 = air). Ce sont les couleurs du prototype web.
+enum Material : uint8_t {
+    MAT_AIR = 0, MAT_DIRT_DARK, MAT_DIRT, MAT_GRASS, MAT_GRASS_HI, MAT_WOOD, MAT_ROCK,
+    MAT_SANDSTONE, MAT_ARCH, MAT_LOWER, MAT_SAND, MAT_STONE, MAT_STONE2, MAT_STONE3, MAT_MOSS,
+    MAT_BASALT, MAT_CRAG, MAT_LAVA, MAT_LAVA2, MAT_ASH, MAT_COUNT
+};
+
 // --- Armes (memes que le prototype) -----------------------------------------------------------
 enum Weapon : uint8_t {
     WP_BAZOOKA, WP_GRENADE, WP_CLUSTER, WP_BANANA, WP_DYNAMITE, WP_HOLY,
@@ -123,7 +130,7 @@ struct Input {
 };
 
 struct Game {
-    uint8_t* terrain;         // W*H octets : 0 = air, 1..4 = matiere (cf. la vue)
+    uint8_t* terrain;         // W*H octets : 0 = air, sinon un Material
     MatchOptions opt;
     Worm worms[TEAMS][MAX_WORMS];
     Team teams[TEAMS];

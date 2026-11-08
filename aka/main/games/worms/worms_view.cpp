@@ -25,8 +25,8 @@ constexpr int SCR_W  = ui::SCR_W;
 constexpr int FAR_H  = 180;                       // 450 * 0,4
 constexpr int FAR_OY = (AREA_H - FAR_H) / 2;      // marge haute en vue carte
 
-uint16_t sky_[H], dirt_[H], water_[H];
-uint16_t C_GRASS, C_FOAM, C_PEBBLE, C_TEAM[2], C_TEAM_D[2], C_SKIN, C_BLACK, C_WHITE, C_GRAVE, C_VOID;
+uint16_t sky_[H], water_[H], mat_[MAT_COUNT], mat_dark_[MAT_COUNT];
+uint16_t C_FOAM, C_TEAM[2], C_TEAM_D[2], C_SKIN, C_BLACK, C_WHITE, C_GRAVE, C_VOID;
 uint16_t C_EARTH, C_SMOKE, C_FIRE1, C_FIRE2, C_SPARK, C_SPLASH, C_ROCKET, C_GREEN, C_GOLD, C_RED;
 uint8_t  wave_lut_[32];
 
@@ -55,8 +55,10 @@ Cam make_cam(const State& s) {
 // Decor
 // ---------------------------------------------------------------------------------------------------
 inline uint16_t px_color(uint8_t t, int wx, int wy, bool detail, uint32_t now) {
-    if (t == 2) return C_GRASS;
-    if (t == 1) return (detail && ((wx * 7 + wy * 13) & 31) == 0) ? C_PEBBLE : dirt_[wy];
+    if (t) {
+        if (t >= MAT_COUNT) return mat_[MAT_DIRT];
+        return (detail && t != MAT_LAVA && t != MAT_LAVA2 && ((wx * 7 + wy * 13) & 31) == 0) ? mat_dark_[t] : mat_[t];
+    }
     // air
     const int wl = WATER_Y + wave_lut_[((wx >> 2) + (int)(now >> 7)) & 31];
     if (wy < wl) return sky_[wy];
@@ -351,14 +353,21 @@ void init_palette() {
     for (int y = 0; y < H; ++y) {
         const int t = std::min(y, WATER_Y);
         sky_[y] = graphics_make_color(lerp(24, 150, t, WATER_Y), lerp(84, 204, t, WATER_Y), lerp(186, 238, t, WATER_Y));
-        dirt_[y] = graphics_make_color(lerp(150, 78, y, H), lerp(100, 50, y, H), lerp(58, 34, y, H));
         const int d = std::max(0, y - WATER_Y);
         water_[y] = graphics_make_color(lerp(34, 8, std::min(d, 40), 40), lerp(112, 56, std::min(d, 40), 40), lerp(210, 128, std::min(d, 40), 40));
     }
     for (int i = 0; i < 32; ++i) wave_lut_[i] = (uint8_t)(1.5f + 1.5f * sinf((float)i * 6.2831853f / 32.f));
-    C_GRASS  = graphics_make_color( 74, 176,  64);
     C_FOAM   = graphics_make_color(200, 236, 255);
-    C_PEBBLE = graphics_make_color( 96,  62,  40);
+    // Matieres : les couleurs du prototype web (terrain.ts)
+    static const uint32_t rgb[MAT_COUNT] = {
+        0x000000, 0x6E4823, 0x8B5A2B, 0x388E3C, 0x4CAF50, 0xA0522D, 0x5D4037,
+        0xA04000, 0xBA4A00, 0x873600, 0xEDBB99, 0x4A4A4A, 0x5A5A5A, 0x6E6E6E, 0x2E7D32,
+        0x212121, 0x37474F, 0xFF5722, 0xFF9800, 0x78909C };
+    for (int m = 0; m < MAT_COUNT; ++m) {
+        const int r = (rgb[m] >> 16) & 255, g = (rgb[m] >> 8) & 255, b = rgb[m] & 255;
+        mat_[m] = graphics_make_color(r, g, b);
+        mat_dark_[m] = graphics_make_color(r * 82 / 100, g * 82 / 100, b * 82 / 100);
+    }
     C_TEAM[0]   = graphics_make_color(232,  64,  64);
     C_TEAM_D[0] = graphics_make_color(160,  36,  40);
     C_TEAM[1]   = graphics_make_color( 70, 130, 240);
