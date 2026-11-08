@@ -105,8 +105,10 @@ export interface GameOptions {
   wormHp: number; // 50, 100, 150
   windEffect: 'none' | 'low' | 'normal' | 'high';
   mapPreset: MapPreset;
-  displayMode: 'gamebuino_aka' | 'gamebuino_meta' | 'pc_android'; // Gamebuino AKA (ESP32-S3 320x240) vs Gamebuino META (ATSAMD21 160x128) vs PC/Android HD
-  fpsLimit: 25 | 50 | 60; // 25 fps default on META, up to 50 fps; 60 fps on AKA and PC
+  displayMode: 'gamebuino_aka' | 'pc_android'; // Gamebuino AKA (ESP32-S3 320x240) vs PC/Android HD
+  graphicStyle: 'hd_cartoon' | 'retro_aka'; // Visual aesthetic
+  enhancedGraphics: boolean; // Dynamic lighting, weather particles, water caustics & shockwaves
+  fpsLimit: 30 | 60; // 60 fps standard, 30 fps eco mode
   rgb565Mode: boolean; // Simulates RGB565 16-bit color depth
   retroFilter: boolean; // Scanlines & pixel matrix
   fastZoomMode: boolean; // Quick toggle between 0.45x and 1.6x

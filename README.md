@@ -50,6 +50,9 @@ Pas portés : le mode en ligne, la minimap radar, les 3 pistes musicales du prot
 - **Moteur chiptune 8 bits (Web Audio)** : 3 pistes (*Marche Militaire des Vers AKA*, *Suspense & Stratégie Gamebuino*, *Adrénaline & Détonation*) et bruitages synthétisés.
 - **Hors ligne** : polices et assets embarqués, aucune requête externe (hors mode en ligne).
 - **Réglages** : durée du tour (20 à 90 s), 1 à 4 vers par équipe, PV (50/100/150), vent, filtre rétro LCD / RGB565.
+- **Galerie du prototype** : explorateur des 5 cartes (zoom, caméra, cratères d'essai au clic) et studio d'animations des vers (repos, marche, saut, visée, tir, blessé, victoire, tombe ; 11 armes, chapeaux, bruitages).
+- **Style graphique au choix** (Options) : « HD Cartoon » ou « Pixel-Art AKA 320×240 » (rendu interne 640 × 480, mise à l'échelle entière ×2).
+- **Décor riche** : strates géologiques (humus, argile, basalte, filons), herbe détaillée, fleurs et champignons, lianes, ponts de corde, vent chargé de graines et de feuilles, braises et fumée sur le volcan, secousse d'écran et ondes de choc.
 
 ---
 

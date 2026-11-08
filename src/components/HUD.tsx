@@ -24,6 +24,7 @@ import {
   Rocket,
   FastForward,
   Music,
+  Eye,
 } from 'lucide-react';
 import { sounds } from '../utils/audio';
 
@@ -42,6 +43,7 @@ interface HUDProps {
   onToggleQuickZoom: () => void;
   onOpenOptions: () => void;
   onOpenHelp: () => void;
+  onOpenGallery?: () => void;
   onToggleDisplayMode: () => void;
   onToggleMusic: () => void;
   isMusicPlaying: boolean;
@@ -74,6 +76,7 @@ export const HUD: React.FC<HUDProps> = ({
   onToggleQuickZoom,
   onOpenOptions,
   onOpenHelp,
+  onOpenGallery,
   onToggleDisplayMode,
   onToggleMusic,
   isMusicPlaying,
@@ -223,24 +226,34 @@ export const HUD: React.FC<HUDProps> = ({
 
         {/* Top Right: Mode Switcher & Game Control Buttons */}
         <div className="flex items-center gap-2 pointer-events-auto">
-          {/* Display Mode Toggle (Gamebuino AKA vs Gamebuino META vs Plein Écran HD) */}
+          {/* Gallery & Worms Showcase Button */}
+          {onOpenGallery && (
+            <button
+              onClick={() => {
+                sounds.playMenuClick();
+                onOpenGallery();
+              }}
+              title="Explorateur des Cartes & Studio d'Animations des Vers"
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-950/80 hover:bg-emerald-900/80 border border-emerald-500/80 rounded-xl text-xs font-bold text-emerald-300 transition-colors shadow-lg backdrop-blur-sm"
+            >
+              <Eye className="w-4 h-4 text-emerald-400" />
+              <span className="hidden sm:inline">Cartes & Vers</span>
+            </button>
+          )}
+
+          {/* Display Mode Toggle (Gamebuino AKA vs Plein Écran HD) */}
           <button
             onClick={() => {
               sounds.playMenuClick();
               onToggleDisplayMode();
             }}
-            title="Changer de vue: Gamebuino AKA (ESP32-S3) / Gamebuino META (ATSAMD21) / Plein Écran HD"
+            title="Changer de vue: Gamebuino AKA (ESP32-S3 · 320x240) / Plein Écran HD"
             className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-900/80 hover:bg-slate-800 border border-slate-700/80 rounded-xl text-xs font-medium text-slate-200 transition-colors shadow-lg backdrop-blur-sm"
           >
             {options.displayMode === 'gamebuino_aka' ? (
               <>
                 <Gamepad2 className="w-4 h-4 text-emerald-400" />
                 <span className="hidden sm:inline">AKA 320x240</span>
-              </>
-            ) : options.displayMode === 'gamebuino_meta' ? (
-              <>
-                <Gamepad2 className="w-4 h-4 text-amber-400" />
-                <span className="hidden sm:inline">META 160x128</span>
               </>
             ) : (
               <>

@@ -13,7 +13,7 @@
   }
 }
 
-/* Gamebuino AKA 320x240 & META 160x128 Pixel Shader */
+/* Gamebuino AKA 320x240 Retro Pixel Shader */
 .lcd-scanlines {
   background: linear-gradient(
     rgba(18, 16, 24, 0) 50%,
