@@ -1,8 +1,10 @@
 name: Release
 
 # Release à la demande (Actions > Release > Run workflow).
-# Construit : PC Windows, PC Linux et Gamebuino AKA (si aka/ existe),
-# puis publie tout dans une seule release GitHub.
+# Construit : PC Windows, PC Linux et Gamebuino AKA, puis publie tout dans une seule release GitHub.
+#   - avec le portage natif (aka/) : PC = version SDL2 du MEME code que la console, AKA = firmware ESP-IDF + carte SD
+#   - sans lui : PC = prototype web emballe dans Electron
+#   - "include_web_desktop" ajoute aussi les paquets Electron du prototype web
 on:
   workflow_dispatch:
     inputs:
@@ -16,6 +18,10 @@ on:
         default: false
       draft:
         description: "Créer la release en brouillon (à relire avant publication)"
+        type: boolean
+        default: false
+      include_web_desktop:
+        description: "Ajouter aussi les paquets Electron du prototype web (en plus des versions natives)"
         type: boolean
         default: false
 
@@ -71,10 +77,14 @@ jobs:
       - run: bun install --frozen-lockfile --ignore-scripts
       - run: bun run lint
       - run: bun run build
+      - name: Tests du portage natif (moteur + coquille, sans matériel)
+        if: hashFiles('aka/test/run_tests.sh') != ''
+        run: sh aka/test/run_tests.sh
 
   desktop:
-    name: PC ${{ matrix.label }}
+    name: PC ${{ matrix.label }} (prototype web, Electron)
     needs: [detect, check]
+    if: needs.detect.outputs.has_aka != 'true' || inputs.include_web_desktop
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -110,7 +120,70 @@ jobs:
           ls -la out
       - uses: actions/upload-artifact@v4
         with:
-          name: pc-${{ matrix.label }}
+          name: pc-web-${{ matrix.label }}
+          path: out/*
+          if-no-files-found: error
+
+  native:
+    name: PC ${{ matrix.label }} (natif SDL2)
+    needs: [detect, check]
+    if: needs.detect.outputs.has_aka == 'true'
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            label: Windows
+          - os: ubuntu-latest
+            label: Linux
+    steps:
+      - uses: actions/checkout@v4
+
+      # --- Linux : g++, CMake et SDL2 depuis les paquets Ubuntu
+      - name: Dépendances (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends cmake g++ ninja-build libsdl2-dev
+      - name: Compiler et assembler (Linux)
+        if: runner.os == 'Linux'
+        env:
+          SEMVER: ${{ needs.detect.outputs.semver }}
+        run: |
+          cmake -S aka/pc -B build-pc -G Ninja -DCMAKE_BUILD_TYPE=Release
+          cmake --build build-pc
+          cmake --install build-pc --prefix "dist/Worms-AKA-Battle"
+          mkdir -p out
+          tar -czf "out/Worms-AKA-Battle-$SEMVER-Linux-x64.tar.gz" -C dist Worms-AKA-Battle
+
+      # --- Windows : MSYS2 / MinGW-w64 (SDL2 est fournie en DLL, copiée à côté de l'exécutable)
+      - name: Dépendances (Windows)
+        if: runner.os == 'Windows'
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: false
+          install: >-
+            mingw-w64-x86_64-gcc mingw-w64-x86_64-cmake mingw-w64-x86_64-ninja
+            mingw-w64-x86_64-SDL2 zip
+      - name: Compiler et assembler (Windows)
+        if: runner.os == 'Windows'
+        shell: msys2 {0}
+        env:
+          SEMVER: ${{ needs.detect.outputs.semver }}
+        run: |
+          cmake -S aka/pc -B build-pc -G Ninja -DCMAKE_BUILD_TYPE=Release
+          cmake --build build-pc
+          cmake --install build-pc --prefix "dist/Worms-AKA-Battle"
+          cp /mingw64/bin/SDL2.dll dist/Worms-AKA-Battle/
+          mkdir -p out
+          (cd dist && zip -r "../out/Worms-AKA-Battle-$SEMVER-Windows-x64.zip" Worms-AKA-Battle)
+
+      - name: Lister les fichiers produits
+        shell: bash
+        run: ls -la out
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pc-native-${{ matrix.label }}
           path: out/*
           if-no-files-found: error
 
@@ -160,12 +233,14 @@ jobs:
 
   release:
     name: Publier la release
-    needs: [detect, check, desktop, aka]
+    needs: [detect, check, desktop, native, aka]
     if: >-
       ${{ !cancelled()
       && needs.check.result == 'success'
-      && needs.desktop.result == 'success'
-      && contains(fromJSON('["success","skipped"]'), needs.aka.result) }}
+      && contains(fromJSON('["success","skipped"]'), needs.desktop.result)
+      && contains(fromJSON('["success","skipped"]'), needs.native.result)
+      && contains(fromJSON('["success","skipped"]'), needs.aka.result)
+      && (needs.desktop.result == 'success' || needs.native.result == 'success') }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -179,6 +254,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ needs.detect.outputs.version }}
           HAS_AKA: ${{ needs.detect.outputs.has_aka }}
+          WEB_DESKTOP: ${{ needs.desktop.result }}
           PRERELEASE: ${{ inputs.prerelease }}
           DRAFT: ${{ inputs.draft }}
         run: |
@@ -187,12 +263,17 @@ jobs:
             echo "## Worms AKA Battle $VERSION"
             echo
             echo "### Contenu de la release"
-            echo "- **PC Windows** : \`.exe\` portable (aucune installation) ou \`.zip\`"
-            echo "- **PC Linux** : \`.AppImage\` (chmod +x puis lancer) ou \`.tar.gz\`"
             if [ "$HAS_AKA" = "true" ]; then
+              echo "- **PC Windows** : \`*-Windows-x64.zip\` (décompresser, lancer \`worms.exe\`)"
+              echo "- **PC Linux** : \`*-Linux-x64.tar.gz\` (nécessite SDL2 : \`sudo apt install libsdl2-2.0-0\`)"
               echo "- **Gamebuino AKA** : \`*-AKA-SD.zip\`, à décompresser à la racine de la carte SD (dossier \`$AKA_SD_FOLDER/\` avec firmware.bin, meta.json, Picture.png, screen.bmp)"
             else
+              echo "- **PC Windows** : \`.exe\` portable (aucune installation) ou \`.zip\` (prototype web, Electron)"
+              echo "- **PC Linux** : \`.AppImage\` (chmod +x puis lancer) ou \`.tar.gz\` (prototype web, Electron)"
               echo "- **Gamebuino AKA** : non inclus (portage natif pas encore présent dans le dépôt)"
+            fi
+            if [ "$WEB_DESKTOP" = "success" ] && [ "$HAS_AKA" = "true" ]; then
+              echo "- **Prototype web (Electron)** : paquets \`*-win-*\` / \`*-linux-*\`, mode en ligne non fonctionnel"
             fi
           } > notes.md
           args=(--repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "Worms AKA Battle $VERSION" --notes-file notes.md)

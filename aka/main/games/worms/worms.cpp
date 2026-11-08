@@ -598,6 +598,11 @@ void start(Game& g, const MatchOptions& o) {
         case MAP_VOLCANO:   gen_volcano(g); break;
         default:            gen_procedural(g); break;
     }
+    // La terre s'arrete au-dessus de l'eau (fond irregulier) : tout ce qui tombe plus bas se noie.
+    for (int x = 0; x < W; ++x) {
+        const int bottom = 398 + (int)(5.f * sinf((float)x * 0.05f));
+        for (int y = bottom; y < H; ++y) g.terrain[y * W + x] = 0;
+    }
     add_grass(g);
     const int n = g.opt.worms_per_team;
     for (int t = 0; t < TEAMS; ++t) {
