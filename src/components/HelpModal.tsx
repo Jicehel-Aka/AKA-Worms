@@ -37,7 +37,7 @@ export const HelpModal: React.FC<HelpModalProps> = ({ isOpen, onClose }) => {
             </p>
             <ul className="text-xs text-slate-400 mt-2 space-y-1 list-disc list-inside">
               <li>
-                <strong className="text-white">Vue Cible (1.5x) :</strong> Gros plan centré sur votre ver pour ajuster l'angle de tir précis au degré près et jauger les obstacles.
+                <strong className="text-white">Vue Cible (1.45x) :</strong> Gros plan centré sur votre ver pour ajuster l'angle de tir précis au degré près et jauger les obstacles.
               </li>
               <li>
                 <strong className="text-white">Vue Tactique Globale (0.45x) :</strong> Recul panoramique pour visualiser toute la carte, repérer tous les vers ennemis, observer la force du vent et anticiper les tirs paraboliques.
