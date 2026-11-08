@@ -25,7 +25,10 @@ constexpr int SCR_W  = ui::SCR_W;
 constexpr int FAR_H  = 180;                       // 450 * 0,4
 constexpr int FAR_OY = (AREA_H - FAR_H) / 2;      // marge haute en vue carte
 
-uint16_t sky_[H], water_[H], mat_[MAT_COUNT], mat_dark_[MAT_COUNT];
+uint16_t sky_[H], water_[H], mat_[MAT_COUNT], mat_dark_[MAT_COUNT], mat_mid_[MAT_COUNT];
+uint16_t mat_light_[MAT_COUNT], mat_edge_[MAT_COUNT], mat_sub_[MAT_COUNT];   // reflet, contour, immerge
+uint16_t C_HILL_A, C_HILL_B, C_CLOUD, C_CLOUD_S, C_WATER_LIGHT, C_WATER_SPARK, C_LAVA[6];
+int16_t  hill_a_[512], hill_b_[512];
 uint16_t C_FOAM, C_TEAM[2], C_TEAM_D[2], C_SKIN, C_BLACK, C_WHITE, C_GRAVE, C_VOID;
 uint16_t C_EARTH, C_SMOKE, C_FIRE1, C_FIRE2, C_SPARK, C_SPLASH, C_ROCKET, C_GREEN, C_GOLD, C_RED;
 uint8_t  wave_lut_[32];
@@ -52,18 +55,84 @@ Cam make_cam(const State& s) {
 }
 
 // ---------------------------------------------------------------------------------------------------
-// Decor
+// Decor : ciel (degrade, collines, nuages), eau animee, terrain a matieres texturees avec contours
 // ---------------------------------------------------------------------------------------------------
-inline uint16_t px_color(uint8_t t, int wx, int wy, bool detail, uint32_t now) {
-    if (t) {
-        if (t >= MAT_COUNT) return mat_[MAT_DIRT];
-        return (detail && t != MAT_LAVA && t != MAT_LAVA2 && ((wx * 7 + wy * 13) & 31) == 0) ? mat_dark_[t] : mat_[t];
+struct Cloud { float x, y, rx, ry; };
+// Chaque nuage = 3 bosses ; x = position de depart (monde), vitesse de derive differente
+constexpr int N_CLOUD = 7;
+const Cloud kCloudBase[N_CLOUD] = {
+    {  60, 60, 34, 11 }, { 250, 110, 44, 13 }, { 470, 40, 38, 12 }, { 650, 95, 30, 10 },
+    { 900, 70, 46, 14 }, { 1150, 120, 36, 11 }, { 1330, 50, 40, 12 } };
+
+inline uint32_t hash2(int x, int y) {
+    uint32_t h = (uint32_t)x * 374761393u + (uint32_t)y * 668265263u;
+    h = (h ^ (h >> 13)) * 1274126177u;
+    return h >> 26;                                   // 0..63
+}
+
+// Intervalles de nuages pour une ligne du monde (coordonnees x du monde)
+struct RowClouds { int n; float x0[N_CLOUD * 3], x1[N_CLOUD * 3]; bool shade[N_CLOUD * 3]; };
+void clouds_for_row(int wy, uint32_t now, RowClouds& rc) {
+    rc.n = 0;
+    if (wy > 190) return;
+    const float span = (float)W + 240.f;
+    for (int i = 0; i < N_CLOUD; ++i) {
+        const Cloud& c = kCloudBase[i];
+        float cx = fmodf(c.x + (float)now * (0.004f + 0.0012f * (float)(i % 3)), span) - 120.f;
+        for (int p = 0; p < 3; ++p) {                      // bosse gauche, haute, droite
+            const float px = cx + (p - 1) * c.rx * 0.9f;
+            const float py = c.y + (p == 1 ? -c.ry * 0.5f : 0.f);
+            const float pr = c.rx * (p == 1 ? 0.75f : 0.6f), pv = c.ry * (p == 1 ? 1.1f : 0.85f);
+            const float dy = ((float)wy + 0.5f - py) / pv;
+            if (dy > -1.f && dy < 1.f) {
+                const float half = pr * sqrtf(1.f - dy * dy);
+                rc.x0[rc.n] = px - half; rc.x1[rc.n] = px + half; rc.shade[rc.n] = dy > 0.3f; ++rc.n;
+            }
+        }
     }
-    // air
-    const int wl = WATER_Y + wave_lut_[((wx >> 2) + (int)(now >> 7)) & 31];
-    if (wy < wl) return sky_[wy];
-    if (wy == wl) return C_FOAM;
-    return water_[std::min(wy, H - 1)];
+}
+
+inline uint16_t sky_px(int wx, int wy, const RowClouds& rc) {
+    for (int i = 0; i < rc.n; ++i)
+        if ((float)wx >= rc.x0[i] && (float)wx < rc.x1[i]) return rc.shade[i] ? C_CLOUD_S : C_CLOUD;
+    // collines lointaines (parallaxe : elles defilent moins vite que le decor)
+    if (wy >= hill_a_[((wx >> 1) + 64) & 511] && wy < WATER_Y) {
+        if (wy >= hill_b_[((wx * 3 >> 2) + 200) & 511]) return C_HILL_B;
+        return C_HILL_A;
+    }
+    if (wy >= hill_b_[((wx * 3 >> 2) + 200) & 511] && wy < WATER_Y) return C_HILL_B;
+    return sky_[wy];
+}
+
+// Choix de la teinte d'un pixel de terrain : 0 base, 1 sombre, 2 clair, 3 intermediaire (fond de strate)
+inline int texture(uint8_t t, int wx, int wy, uint32_t now) {
+    const uint32_t r = hash2(wx >> 1, wy >> 1);
+    switch (t) {
+        case MAT_DIRT_DARK: case MAT_DIRT: case MAT_ROCK:
+            return r < 3 ? 1 : (r == 3 ? 2 : 0);
+        case MAT_GRASS: case MAT_GRASS_HI: case MAT_MOSS:
+            return r < 6 ? 2 : (r < 9 ? 1 : 0);
+        case MAT_SANDSTONE: case MAT_ARCH: case MAT_LOWER:
+            return ((((wy + (int)(hash2(wx >> 3, 0) & 3)) / 6) & 1) ? 3 : (r < 2 ? 1 : 0));
+        case MAT_SAND:
+            return r < 4 ? 1 : (r == 5 ? 2 : 0);
+        case MAT_STONE: case MAT_STONE2: case MAT_STONE3: {
+            const int row = wy >> 3;
+            if ((wy & 7) == 0 || (((wx + ((row & 1) << 3)) & 15) == 0)) return 1;       // joints de briques
+            return r == 0 ? 2 : 0;
+        }
+        case MAT_WOOD:
+            return (wx % 12 == 0) ? 1 : (r < 4 ? 3 : 0);
+        case MAT_BASALT:
+            return r < 3 ? 2 : (r < 8 ? 3 : 0);
+        case MAT_CRAG:
+            return r < 4 ? 2 : (r < 10 ? 1 : 0);
+        case MAT_ASH:
+            return r < 6 ? 1 : 0;
+        case MAT_LAVA: case MAT_LAVA2:
+            return -1 - (int)(((wx + wy * 2 + (int)(now >> 6)) >> 1) % 6);               // braises animees
+        default: return 0;
+    }
 }
 
 void draw_terrain(const Game& g, const State& s, uint32_t now) {
@@ -80,11 +149,45 @@ void draw_terrain(const Game& g, const State& s, uint32_t now) {
         if (wy < 0) wy = 0;
         if (wy >= H) wy = H - 1;
         const uint8_t* row = g.terrain + wy * W;
+        const uint8_t* up = wy > 0 ? row - W : nullptr;
+        const uint8_t* dn = wy < H - 1 ? row + W : nullptr;
+        RowClouds rc;
+        clouds_for_row(wy, now, rc);
+        const bool under = wy > WATER_Y + 2;                          // terre immergee
         int run_x = 0;
         uint16_t run_c = 0; bool first = true;
         for (int x = 0; x < SCR_W; ++x) {
             const int wx = s.far ? (x * 5) >> 1 : cam.ox + x;
-            const uint16_t c = px_color(row[wx], wx, wy, detail, now);
+            const uint8_t t = row[wx];
+            uint16_t c;
+            if (t) {
+                const uint8_t m = t < MAT_COUNT ? t : (uint8_t)MAT_DIRT;
+                if (under) c = mat_sub_[m];
+                else if (!detail) c = mat_[m];
+                else {
+                    const bool lava = (m == MAT_LAVA || m == MAT_LAVA2);
+                    const bool top = !up || !up[wx];
+                    const bool side = (wx > 0 && !row[wx - 1]) || (wx < W - 1 && !row[wx + 1]) || (dn && !dn[wx]);
+                    if (lava) { const int k = -1 - texture(m, wx, wy, now); c = C_LAVA[k < 0 ? 0 : (k > 5 ? 5 : k)]; }
+                    else if (top) c = mat_light_[m];
+                    else if (side) c = mat_edge_[m];
+                    else {
+                        switch (texture(m, wx, wy, now)) {
+                            case 1: c = mat_dark_[m]; break;
+                            case 2: c = mat_light_[m]; break;
+                            case 3: c = mat_mid_[m]; break;
+                            default: c = mat_[m]; break;
+                        }
+                    }
+                }
+            } else {
+                const int wl = WATER_Y + wave_lut_[((wx >> 2) + (int)(now >> 7)) & 31];
+                if (wy < wl) c = sky_px(wx, wy, rc);
+                else if (wy == wl) c = C_FOAM;
+                else if (wy <= wl + 2) c = C_WATER_LIGHT;
+                else if (detail && wy < wl + 14 && hash2((wx + (int)(now >> 8)) >> 2, wy >> 1) < 3) c = C_WATER_SPARK;
+                else c = water_[std::min(wy, H - 1)];
+            }
             if (first) { run_c = c; first = false; }
             else if (c != run_c) {
                 graphics_fill_rect_raw(run_x, sy, x - run_x, 1, run_c);
@@ -366,7 +469,25 @@ void init_palette() {
     for (int m = 0; m < MAT_COUNT; ++m) {
         const int r = (rgb[m] >> 16) & 255, g = (rgb[m] >> 8) & 255, b = rgb[m] & 255;
         mat_[m] = graphics_make_color(r, g, b);
-        mat_dark_[m] = graphics_make_color(r * 82 / 100, g * 82 / 100, b * 82 / 100);
+        mat_dark_[m]  = graphics_make_color(r * 80 / 100, g * 80 / 100, b * 80 / 100);
+        mat_mid_[m]   = graphics_make_color(r * 91 / 100, g * 91 / 100, b * 91 / 100);
+        mat_light_[m] = graphics_make_color(r + (255 - r) * 30 / 100, g + (255 - g) * 30 / 100, b + (255 - b) * 30 / 100);
+        mat_edge_[m]  = graphics_make_color(r * 52 / 100, g * 52 / 100, b * 52 / 100);
+        // terre immergee : teinte vers le bleu profond de l'eau
+        mat_sub_[m]   = graphics_make_color((r * 5 + 10 * 3) / 8, (g * 5 + 56 * 3) / 8, (b * 5 + 128 * 3) / 8);
+    }
+    for (int i = 0; i < 6; ++i)                                   // braises : du rouge profond au jaune
+        C_LAVA[i] = graphics_make_color(236 + i * 3, 70 + i * 28, 20 + i * 8);
+    C_HILL_A = graphics_make_color(112, 160, 212);
+    C_HILL_B = graphics_make_color( 92, 142, 190);
+    C_CLOUD   = graphics_make_color(250, 252, 255);
+    C_CLOUD_S = graphics_make_color(214, 228, 246);
+    C_WATER_LIGHT = graphics_make_color(96, 170, 236);
+    C_WATER_SPARK = graphics_make_color(150, 210, 250);
+    for (int i = 0; i < 512; ++i) {
+        const float x = (float)i;
+        hill_a_[i] = (int16_t)(338.f + 26.f * sinf(x * 0.0123f) + 12.f * sinf(x * 0.037f + 1.f));
+        hill_b_[i] = (int16_t)(368.f + 20.f * sinf(x * 0.0205f + 2.f) + 9.f * sinf(x * 0.06f));
     }
     C_TEAM[0]   = graphics_make_color(232,  64,  64);
     C_TEAM_D[0] = graphics_make_color(160,  36,  40);
