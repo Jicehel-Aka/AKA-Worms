@@ -28,6 +28,7 @@ static void test_maps() {
                     CHECK(w.alive);
                     CHECK(w.x > 5 && w.x < W - 5);
                     CHECK(w.y < WATER_Y);
+                    if (!body_free(g, (int)w.x, (int)w.y)) printf("  place: carte %d seed %u equipe %d ver %d x=%d y=%d\n", m, (unsigned)seed, t, i, (int)w.x, (int)w.y);
                     CHECK(body_free(g, (int)w.x, (int)w.y));
                     bool ground = false;
                     for (int xx = -2; xx <= 2; ++xx) if (solid(g, (int)w.x + xx, (int)w.y + 1)) ground = true;

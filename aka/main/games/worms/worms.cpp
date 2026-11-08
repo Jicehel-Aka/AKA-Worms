@@ -471,107 +471,180 @@ static void poly_f(Game& g, const float* pts, int n, uint8_t m) {
             for (int x = (int)lroundf(xs[k]); x < (int)lroundf(xs[k + 1]); ++x) put(g, x, y, m);
     }
 }
-// Courbe de Bezier cubique fermee par sa corde (comme moveTo/bezierCurveTo/lineTo du prototype)
-static void bezier_f(Game& g, float x0, float y0, float c1x, float c1y, float c2x, float c2y, float x1, float y1, uint8_t m) {
-    float pts[2 * 33];
-    const int N = 32;
-    for (int i = 0; i <= N; ++i) {
-        const float t = (float)i / N, u = 1.f - t;
-        pts[2 * i]     = u * u * u * x0 + 3 * u * u * t * c1x + 3 * u * t * t * c2x + t * t * t * x1;
-        pts[2 * i + 1] = u * u * u * y0 + 3 * u * u * t * c1y + 3 * u * t * t * c2y + t * t * t * y1;
+// Trace libre : segments et Beziers cubiques aplatis, rempli ensuite par poly_f
+struct Path {
+    float p[2 * 160]; int n{0};
+    void pt(float x, float y) { if (n < 160) { p[2 * n] = x; p[2 * n + 1] = y; ++n; } }
+    void bez(float x0, float y0, float c1x, float c1y, float c2x, float c2y, float x1, float y1) {
+        for (int i = 1; i <= 16; ++i) {
+            const float t = (float)i / 16, u = 1.f - t;
+            pt(u * u * u * x0 + 3 * u * u * t * c1x + 3 * u * t * t * c2x + t * t * t * x1,
+               u * u * u * y0 + 3 * u * u * t * c1y + 3 * u * t * t * c2y + t * t * t * y1);
+        }
     }
-    poly_f(g, pts, N + 1, m);
+    void fill(Game& g, uint8_t m) { poly_f(g, p, n, m); }
+};
+// Ellipse inclinee
+static void ellipse_rot_f(Game& g, float cx, float cy, float rx, float ry, float rot, uint8_t m) {
+    const float fx = cx * K, fy = cy * K, frx = rx * K, fry = ry * K, c = cosf(rot), s = sinf(rot);
+    const float R = std::max(frx, fry);
+    for (int y = (int)floorf(fy - R); y <= (int)ceilf(fy + R); ++y)
+        for (int x = (int)floorf(fx - R); x <= (int)ceilf(fx + R); ++x) {
+            const float dx = (float)x + 0.5f - fx, dy = (float)y + 0.5f - fy;
+            const float ux = (dx * c + dy * s) / frx, uy = (-dx * s + dy * c) / fry;
+            if (ux * ux + uy * uy <= 1.f) put(g, x, y, m);
+        }
+}
+// Trait epais (quadrilatere)
+static void line_f(Game& g, float x1, float y1, float x2, float y2, float wd, uint8_t m) {
+    const float dx = x2 - x1, dy = y2 - y1, l = std::max(1e-3f, sqrtf(dx * dx + dy * dy));
+    const float nx = -dy / l * wd / 2, ny = dx / l * wd / 2;
+    const float q[8] = { x1 + nx, y1 + ny, x2 + nx, y2 + ny, x2 - nx, y2 - ny, x1 - nx, y1 - ny };
+    poly_f(g, q, 4, m);
+}
+static void cactus_f(Game& g, float x, float y, float h) {
+    rect_f(g, x - 5, y - h, 10, h, MAT_MOSS);
+    rect_f(g, x - 16.5f, y - h * 0.5f - 2.5f, 12.5f, 5, MAT_MOSS);  rect_f(g, x - 16.5f, y - h * 0.75f, 5, h * 0.25f + 2.5f, MAT_MOSS);
+    rect_f(g, x + 4, y - h * 0.35f - 2.5f, 12.5f, 5, MAT_MOSS);     rect_f(g, x + 11.5f, y - h * 0.6f, 5, h * 0.25f + 2.5f, MAT_MOSS);
+}
+static void rope_bridge_f(Game& g, float x1, float y1, float x2, float y2) {
+    const float mx = (x1 + x2) / 2, my = (y1 + y2) / 2 + 28;
+    float lx = x1, ly = y1;
+    for (int i = 1; i <= 14; ++i) {                                              // corde
+        const float t = (float)i / 14, u = 1.f - t;
+        const float qx = u * u * x1 + 2 * u * t * mx + t * t * x2, qy = u * u * y1 + 2 * u * t * my + t * t * y2;
+        line_f(g, lx, ly, qx, qy, 3, MAT_WOOD); lx = qx; ly = qy;
+    }
+    for (int i = 0; i <= 14; ++i) {                                              // planches
+        const float t = (float)i / 14, u = 1.f - t;
+        rect_f(g, u * u * x1 + 2 * u * t * mx + t * t * x2 - 5, u * u * y1 + 2 * u * t * my + t * t * y2 - 4, 10, 6, MAT_WOOD);
+    }
+}
+static void monolith_f(Game& g, float x, float y, float w, float h) {
+    const float q[8] = { x - w / 2, y, x - w / 3, y - h, x + w / 3, y - h, x + w / 2, y };
+    poly_f(g, q, 4, MAT_STONE);
 }
 
 static void gen_islands(Game& g) {
     struct Isl { float x, y, w, h; };
     static const Isl isl[4] = {
-        { 180, 520, 260, 180 }, { 540, 440, 320, 220 }, { 960, 480, 280, 200 }, { 1320, 540, 220, 170 } };
-    for (const Isl& i : isl)                                   // base de terre sombre
-        bezier_f(g, i.x - i.w / 2, i.y, i.x - i.w / 2 + 30, i.y + i.h, i.x + i.w / 2 - 30, i.y + i.h, i.x + i.w / 2, i.y, MAT_DIRT_DARK);
-    for (const Isl& i : isl)                                   // couche de terre plus claire
-        bezier_f(g, i.x - i.w / 2 + 15, i.y, i.x - i.w / 4, i.y + i.h * 0.7f, i.x + i.w / 4, i.y + i.h * 0.7f, i.x + i.w / 2 - 15, i.y, MAT_DIRT);
-    for (const Isl& i : isl) ellipse_f(g, i.x, i.y, i.w / 2, 28, MAT_GRASS);          // calotte d'herbe
-    for (const Isl& i : isl)                                                           // brins d'herbe
-        for (int k = 0; k < (int)i.w; k += 8) {
-            const float h = 4 + sinf((float)k * 0.5f) * 4;
-            rect_f(g, i.x - i.w / 2 + k, i.y - 12 - h, 5, h + 14, MAT_GRASS_HI);
+        { 190, 520, 280, 220 }, { 560, 440, 340, 260 }, { 980, 470, 310, 240 }, { 1350, 530, 260, 200 } };
+    for (const Isl& i : isl) {                                  // corps : deux Beziers vers la pointe
+        Path p; p.pt(i.x - i.w / 2, i.y);
+        p.bez(i.x - i.w / 2, i.y, i.x - i.w / 2 + 25, i.y + i.h * 0.9f, i.x - 30, i.y + i.h + 20, i.x, i.y + i.h);
+        p.bez(i.x, i.y + i.h, i.x + 30, i.y + i.h + 20, i.x + i.w / 2 - 25, i.y + i.h * 0.9f, i.x + i.w / 2, i.y);
+        p.fill(g, MAT_DIRT);
+        // couches de sediments plus sombres
+        for (int s = 0; s < 4; s += 2) {
+            const float sy = i.y + 40 + s * 45;
+            for (float x = i.x - i.w / 2 + 20; x < i.x + i.w / 2 - 20; x += 4) {
+                const float yy = sy + 6.f * sinf((x - i.x) * 0.02f);
+                if (solid(g, px(x), px(yy + 12))) rect_f(g, x, yy, 4, 22, MAT_DIRT_DARK);
+            }
         }
-    rect_f(g, 300, 500, 100, 10, MAT_WOOD);                    // ponts
-    rect_f(g, 690, 450, 130, 10, MAT_WOOD);
-    rect_f(g, 1090, 490, 120, 10, MAT_WOOD);
-    ellipse_f(g, 760, 410, 24, 24, MAT_ROCK);                  // pitons rocheux
-    ellipse_f(g, 360, 470, 18, 18, MAT_ROCK);
+        // blocs de roche enfouis
+        for (int k = 0; k < 14; ++k) {
+            const float ex = i.x + sinf((float)k * 2.3f + (float)(&i - isl)) * i.w * 0.36f;
+            const float ey = i.y + 35 + (float)((k * 17) % (int)(i.h - 70));
+            const float er = 4 + (float)(k % 5) * 2.f;
+            if (solid(g, px(ex), px(ey))) ellipse_f(g, ex, ey, er, er * 0.7f, MAT_ROCK);
+        }
+    }
+    for (const Isl& i : isl) ellipse_f(g, i.x, i.y, i.w / 2 + 6, 26, MAT_GRASS);        // calotte d'herbe
+    for (const Isl& i : isl)                                                           // brins d'herbe
+        for (int k = 0; k < (int)i.w; k += 7) {
+            const float h = 7 + sinf((float)k * 0.8f) * 5;
+            rect_f(g, i.x - i.w / 2 + (float)k - 1, i.y - 12 - h + 6, 3, h + 4, MAT_GRASS_HI);
+        }
+    rope_bridge_f(g, 310, 500, 410, 450);                      // ponts de corde
+    rope_bridge_f(g, 710, 440, 840, 465);
+    rope_bridge_f(g, 1110, 470, 1240, 515);
+    monolith_f(g, 370, 490, 24, 48);                           // monolithes
+    monolith_f(g, 770, 420, 28, 56);
 }
 
 static void gen_canyon(Game& g) {
-    static const float left[]  = { 0,250, 340,280, 280,500, 400,680, 0,780 };
-    static const float right[] = { 1600,260, 1240,310, 1300,540, 1200,700, 1600,780 };
-    poly_f(g, left, 5, MAT_SANDSTONE);
-    poly_f(g, right, 5, MAT_SANDSTONE);
-    ellipse_f(g, 800, 560, 260, 60, MAT_ARCH);
-    ellipse_f(g, 800, 700, 320, 50, MAT_LOWER);
-    ellipse_f(g, 800, 620, 140, 45, MAT_AIR);                  // cavernes
-    ellipse_f(g, 200, 420, 90, 60, MAT_AIR);
-    ellipse_f(g, 1400, 460, 100, 70, MAT_AIR);
-    rect_f(g, 0, 240, 340, 14, MAT_SAND);                      // croute de sable
-    rect_f(g, 1240, 300, 360, 14, MAT_SAND);
-    rect_f(g, 560, 520, 480, 14, MAT_SAND);
+    Path l; l.pt(0, 220); l.pt(380, 260);
+    l.bez(380, 260, 420, 360, 310, 480, 360, 580);
+    l.bez(360, 580, 420, 680, 260, 720, 300, 780);
+    l.pt(0, 780); l.fill(g, MAT_SANDSTONE);
+    Path r; r.pt(1600, 240); r.pt(1220, 290);
+    r.bez(1220, 290, 1170, 390, 1310, 510, 1240, 620);
+    r.bez(1240, 620, 1190, 700, 1340, 740, 1300, 780);
+    r.pt(1600, 780); r.fill(g, MAT_SANDSTONE);
+    ellipse_f(g, 800, 540, 320, 80, MAT_ARCH);
+    ellipse_f(g, 800, 710, 380, 60, MAT_LOWER);
+    ellipse_f(g, 800, 625, 170, 55, MAT_AIR);                  // cavernes
+    ellipse_f(g, 220, 430, 110, 70, MAT_AIR);
+    ellipse_f(g, 1380, 470, 120, 80, MAT_AIR);
+    rect_f(g, 0, 215, 385, 12, MAT_SAND);                      // croute de sable
+    rect_f(g, 1215, 285, 385, 12, MAT_SAND);
+    rect_f(g, 520, 495, 560, 12, MAT_SAND);
+    cactus_f(g, 160, 215, 28); cactus_f(g, 1420, 285, 32); cactus_f(g, 720, 495, 24);
+    ellipse_f(g, 768, 706, 8, 8, MAT_SAND);                    // fossile de dinosaure
+    rect_f(g, 774, 705, 30, 2.5f, MAT_SAND);
+    for (int k = 0; k < 5; ++k) rect_f(g, 780.f + k * 6, 706, 2, 12, MAT_SAND);
 }
 
 static void gen_fortress(Game& g) {
-    rect_f(g, 150, 320, 240, 420, MAT_STONE);                  // tour gauche + creneaux
-    for (int i = 0; i < 240; i += 40) rect_f(g, 150.f + i, 280, 25, 40, MAT_STONE);
-    rect_f(g, 1210, 320, 240, 420, MAT_STONE);                 // tour droite
-    for (int i = 0; i < 240; i += 40) rect_f(g, 1210.f + i, 280, 25, 40, MAT_STONE);
-    rect_f(g, 380, 520, 840, 120, MAT_STONE2);                 // rempart central
-    rect_f(g, 650, 420, 300, 30, MAT_STONE3);                  // plateforme
-    half_disc_top_f(g, 800, 640, 90, MAT_AIR);                 // tunnel en arche
-    rect_f(g, 710, 630, 180, 80, MAT_AIR);
-    rect_f(g, 230, 420, 40, 70, MAT_AIR);                      // fenetres
-    rect_f(g, 1330, 420, 40, 70, MAT_AIR);
-    rect_f(g, 150, 275, 240, 8, MAT_MOSS);                     // mousse
-    rect_f(g, 1210, 275, 240, 8, MAT_MOSS);
-    rect_f(g, 380, 515, 840, 8, MAT_MOSS);
+    for (int t = 0; t < 2; ++t) {                              // tours + creneaux
+        const float x = t == 0 ? 130.f : 1210.f;
+        rect_f(g, x, 300, 260, 480, MAT_STONE);
+        for (int i = 0; i < 5; ++i) rect_f(g, x + (float)i * 48 + 6, 265, 30, 35, MAT_STONE);
+    }
+    rect_f(g, 360, 510, 880, 150, MAT_STONE2);                 // rempart central
+    for (int b = 390; b <= 1180; b += 45) rect_f(g, (float)b, 485, 24, 25, MAT_STONE2);
+    rect_f(g, 660, 400, 280, 40, MAT_STONE3);                  // plateforme de guet
+    half_disc_top_f(g, 800, 640, 95, MAT_AIR);                 // tunnel en arche
+    rect_f(g, 705, 640, 190, 20, MAT_AIR);
+    rect_f(g, 210, 420, 35, 75, MAT_AIR);                      // meurtrieres
+    rect_f(g, 290, 420, 35, 75, MAT_AIR);
+    rect_f(g, 1270, 420, 35, 75, MAT_AIR);
+    rect_f(g, 1350, 420, 35, 75, MAT_AIR);
+    rect_f(g, 130, 292, 260, 10, MAT_MOSS);                    // mousse
+    rect_f(g, 1210, 292, 260, 10, MAT_MOSS);
+    rect_f(g, 360, 502, 880, 10, MAT_MOSS);
 }
 
 static void gen_volcano(Game& g) {
-    static const float left[]  = { 0,760, 550,420, 680,480, 650,760 };
-    static const float right[] = { 1600,760, 1050,420, 920,480, 950,760 };
-    poly_f(g, left, 4, MAT_BASALT);
-    poly_f(g, right, 4, MAT_BASALT);
-    ellipse_f(g, 800, 540, 180, 60, MAT_CRAG);                 // pic flottant central
-    rect_f(g, 520, 415, 560, 10, MAT_LAVA);                    // veines de magma
-    rect_f(g, 700, 535, 200, 8, MAT_LAVA2);
-    rect_f(g, 0, 750, 550, 12, MAT_ASH);                       // cendres
-    rect_f(g, 1050, 750, 550, 12, MAT_ASH);
+    Path l; l.pt(0, 780); l.pt(560, 410);
+    l.bez(560, 410, 620, 430, 660, 470, 680, 520); l.pt(650, 780); l.fill(g, MAT_BASALT);
+    Path r; r.pt(1600, 780); r.pt(1040, 410);
+    r.bez(1040, 410, 980, 430, 940, 470, 920, 520); r.pt(950, 780); r.fill(g, MAT_BASALT);
+    ellipse_f(g, 800, 540, 210, 70, MAT_CRAG);                 // pic flottant central
+    line_f(g, 180, 580, 520, 420, 6, MAT_LAVA);                // fissures de magma
+    line_f(g, 1420, 580, 1080, 420, 6, MAT_LAVA);
+    line_f(g, 700, 535, 900, 535, 6, MAT_LAVA);
+    rect_f(g, 540, 405, 520, 10, MAT_LAVA2);                   // bord incandescent du cratere
+    rect_f(g, 0, 770, 560, 15, MAT_ASH);                       // cendres
+    rect_f(g, 1040, 770, 560, 15, MAT_ASH);
 }
 
 static void gen_procedural(Game& g, float seed) {
-    // Paysage sinusoidal : polyligne tous les 10 px (monde du prototype), interpolee
-    static float hy[161];
-    for (int i = 0; i <= 160; ++i) {
-        const float x = (float)(i * 10);
-        hy[i] = 580.f + sinf(x / 300.f + seed) * 110.f + cosf(x / 140.f + seed * 1.5f) * 60.f + sinf(x / 60.f + seed * 2.f) * 25.f;
+    // Contour a 4 octaves, echantillonne tous les 8 px du prototype et interpole
+    static float hy[201];
+    for (int i = 0; i <= 200; ++i) {
+        const float x = (float)(i * 8);
+        hy[i] = 570.f + sinf(x / 320.f + seed) * 120.f + cosf(x / 140.f + seed * 1.7f) * 60.f
+              + sinf(x / 65.f + seed * 3.1f) * 25.f + cosf(x / 25.f + seed * 4.9f) * 10.f;
     }
     for (int xs = 0; xs < W; ++xs) {
         const float ox = (float)xs / K;
-        const int i = std::min(159, (int)(ox / 10.f));
-        const float t = ox / 10.f - (float)i;
+        const int i = std::min(199, (int)(ox / 8.f));
+        const float t = ox / 8.f - (float)i;
         const float y = hy[i] + (hy[i + 1] - hy[i]) * t;
         for (int ys = std::max(0, (int)lroundf(y * K)); ys < H; ++ys) put(g, xs, ys, MAT_ROCK);
     }
-    for (int i = 0; i < 4; ++i) {                              // grottes
-        const float cx = 250.f + i * 360.f + sinf(seed + (float)i) * 80.f;
-        const float cy = 620.f + cosf(seed * 2.f + (float)i) * 60.f;
-        const float r = 60.f + (float)(i % 2) * 20.f;
-        ellipse_f(g, cx, cy, r, r, MAT_AIR);
+    for (int c = 0; c < 5; ++c) {                              // reseau de grottes
+        const float cx = 220.f + (float)c * 290.f + sinf(seed + (float)c * 2.f) * 60.f;
+        const float cy = 630.f + cosf(seed * 1.5f + (float)c) * 50.f;
+        ellipse_rot_f(g, cx, cy, 75.f + (float)(c % 2) * 25.f, 50.f + (float)(c % 3) * 15.f, (float)c * 0.3f, MAT_AIR);
     }
-    for (int x = 0; x < 1600; x += 6) {                        // herbe en surface
+    for (int x = 0; x < 1600; x += 5) {                        // herbe en surface
         const int xs = px((float)x);
         int sy = -1;
         for (int ys = 100; ys < H; ++ys) if (g.terrain[ys * W + std::min(W - 1, xs)]) { sy = ys; break; }
-        if (sy >= 0 && sy < WATER_Y) rect_f(g, (float)x, (float)sy / K, 6, 12, MAT_GRASS);
+        if (sy >= 0 && sy < WATER_Y) rect_f(g, (float)x, (float)sy / K - 4, 6, 12, MAT_GRASS);
     }
 }
 
@@ -586,7 +659,7 @@ static bool find_spot(Game& g, int team, int idx, int n) {
         // premier sol a partir du haut
         int y = 0;
         for (; y < WATER_Y - 14; ++y)
-            if (solid(g, x, y) && body_free(g, x, y - 1)) break;
+            if (solid(g, x, y) && body_free(g, x, y - 1) && solid(g, x - 4, y) && solid(g, x + 4, y)) break;   // pas sur un pilier etroit
         if (y >= WATER_Y - 14) continue;
         // pas trop pres d'un autre ver
         bool close = false;
@@ -674,9 +747,16 @@ void start(Game& g, const MatchOptions& o) {
             if (!find_spot(g, t, i, n)) {
                 // dernier recours : plateforme sous les pieds
                 int x = t == 0 ? 60 + i * 35 : W - 60 - i * 35;
-                for (int yy = 250; yy < 262; ++yy) for (int xx = x - 15; xx <= x + 15; ++xx) put(g, xx, yy, MAT_STONE);
+                int gy = 0;
+                while (gy < WATER_Y - 14 && !solid(g, x, gy)) ++gy;
+                if (gy >= WATER_Y - 14) {                      // pas de sol : plateforme
+                    gy = 262;
+                    for (int yy = gy; yy < gy + 12; ++yy) for (int xx = x - 15; xx <= x + 15; ++xx) put(g, xx, yy, MAT_STONE);
+                } else {                                       // sol : on degage le volume du corps
+                    for (int yy = gy - WORM_H - 4; yy < gy; ++yy) for (int xx = x - 6; xx <= x + 6; ++xx) put(g, xx, yy, MAT_AIR);
+                }
                 Worm& w = g.worms[t][i];
-                w = Worm{}; w.x = (float)x; w.y = 249.f; w.hp = (int16_t)g.opt.hp;
+                w = Worm{}; w.x = (float)x; w.y = (float)(gy - 1); w.hp = (int16_t)g.opt.hp;
                 w.facing = t == 0 ? 1 : -1; w.aim = 35.f; w.alive = true;
             }
         }

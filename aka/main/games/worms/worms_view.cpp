@@ -463,9 +463,9 @@ void init_palette() {
     C_FOAM   = graphics_make_color(200, 236, 255);
     // Matieres : les couleurs du prototype web (terrain.ts)
     static const uint32_t rgb[MAT_COUNT] = {
-        0x000000, 0x6E4823, 0x8B5A2B, 0x388E3C, 0x4CAF50, 0xA0522D, 0x5D4037,
-        0xA04000, 0xBA4A00, 0x873600, 0xEDBB99, 0x4A4A4A, 0x5A5A5A, 0x6E6E6E, 0x2E7D32,
-        0x212121, 0x37474F, 0xFF5722, 0xFF9800, 0x78909C };
+        0x000000, 0x5C3818, 0x854D27, 0x43A047, 0x66BB6A, 0x8D6E63, 0x6D4C41,
+        0xBA4A00, 0xD35400, 0xA04000, 0xF5CBA7, 0x546E7A, 0x4F6A76, 0x607D8B, 0x2E7D32,
+        0x263238, 0x2E3B42, 0xFF3D00, 0xFFB300, 0x546E7A };
     for (int m = 0; m < MAT_COUNT; ++m) {
         const int r = (rgb[m] >> 16) & 255, g = (rgb[m] >> 8) & 255, b = rgb[m] & 255;
         mat_[m] = graphics_make_color(r, g, b);
