@@ -53,6 +53,7 @@ jobs:
         env:
           VERSION: ${{ inputs.version }}
         run: |
+          VERSION="v${VERSION#[vV]}"   # tolere « 1.0.0 », « V1.0.0 » ou « v1.0.0 »
           if ! [[ "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$ ]]; then
             echo "::error::Version invalide '$VERSION' (attendu : v1.2.3 ou v1.2.3-beta.1)"
             exit 1
