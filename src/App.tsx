@@ -19,6 +19,7 @@ import { LobbyModal } from './components/LobbyModal';
 import { OptionsModal } from './components/OptionsModal';
 import { HelpModal } from './components/HelpModal';
 import { VictoryModal } from './components/VictoryModal';
+import { GalleryModal } from './components/GalleryModal';
 import { DEFAULT_WEAPON_AMMO } from './utils/weapons';
 import { sounds } from './utils/audio';
 import { AIEngine } from './utils/ai';
@@ -101,10 +102,12 @@ export default function App() {
     windEffect: 'normal',
     mapPreset: 'islands',
     displayMode: 'gamebuino_aka', // Gamebuino AKA (ESP32-S3 · 320x240) by default
+    graphicStyle: 'hd_cartoon', // High-fidelity rich graphics & textures
+    enhancedGraphics: true, // Screen shake, shockwaves, weather particles & reflections
     fpsLimit: 60,
-    rgb565Mode: true,
+    rgb565Mode: false, // Disabled by default for maximum graphical richness and vivid colors
     fastZoomMode: true,
-    retroFilter: true,
+    retroFilter: false, // Clean crisp display by default
     soundEnabled: true,
     volume: 0.7,
     musicEnabled: true,
@@ -144,6 +147,7 @@ export default function App() {
   // Modals
   const [isOptionsOpen, setIsOptionsOpen] = useState<boolean>(false);
   const [isHelpOpen, setIsHelpOpen] = useState<boolean>(false);
+  const [isGalleryOpen, setIsGalleryOpen] = useState<boolean>(false);
   const [winningTeam, setWinningTeam] = useState<Team | null>(null);
 
   // Network State
@@ -494,18 +498,9 @@ export default function App() {
 
   return (
     <div className="relative w-screen h-screen overflow-hidden bg-slate-950 font-sans flex flex-col items-center justify-center p-0 md:p-3">
-      {/* 1. Game Canvas Container (wrapped in Gamebuino Chassis if AKA or META selected) */}
-      {options.displayMode !== 'pc_android' ? (
+      {/* 1. Game Canvas Container (wrapped in Gamebuino AKA Chassis if AKA selected) */}
+      {options.displayMode === 'gamebuino_aka' ? (
         <GamebuinoChassis
-          model={options.displayMode}
-          onSwitchModel={(m) =>
-            setOptions((p) => ({
-              ...p,
-              displayMode: m,
-              fpsLimit: m === 'gamebuino_meta' ? 25 : 60,
-            }))
-          }
-          fpsLimit={options.fpsLimit}
           onDpadPress={(dir) => {
             if (dir === 'left') handleMoveLeft();
             else if (dir === 'right') handleMoveRight();
@@ -590,20 +585,12 @@ export default function App() {
           onToggleQuickZoom={() => setIsQuickZoomActive((prev) => !prev)}
           onOpenOptions={() => setIsOptionsOpen(true)}
           onOpenHelp={() => setIsHelpOpen(true)}
+          onOpenGallery={() => setIsGalleryOpen(true)}
           onToggleDisplayMode={() =>
-            setOptions((prev) => {
-              const nextMode =
-                prev.displayMode === 'gamebuino_aka'
-                  ? 'gamebuino_meta'
-                  : prev.displayMode === 'gamebuino_meta'
-                  ? 'pc_android'
-                  : 'gamebuino_aka';
-              return {
-                ...prev,
-                displayMode: nextMode,
-                fpsLimit: nextMode === 'gamebuino_meta' ? 25 : 60,
-              };
-            })
+            setOptions((prev) => ({
+              ...prev,
+              displayMode: prev.displayMode === 'gamebuino_aka' ? 'pc_android' : 'gamebuino_aka',
+            }))
           }
           onToggleMusic={handleToggleMusic}
           isMusicPlaying={isMusicPlaying}
@@ -638,6 +625,7 @@ export default function App() {
         }}
         onStartGame={handleStartGame}
         isConnectedPeer={isConnectedPeer}
+        onOpenGallery={() => setIsGalleryOpen(true)}
       />
 
       {/* 4. Options Modal */}
@@ -657,6 +645,12 @@ export default function App() {
         winningTeam={winningTeam}
         onRematch={handleRematch}
         onReturnToMenu={() => setGameState('LOBBY')}
+      />
+
+      {/* 7. Maps Explorer & Worms Animation Studio Gallery */}
+      <GalleryModal
+        isOpen={isGalleryOpen}
+        onClose={() => setIsGalleryOpen(false)}
       />
     </div>
   );

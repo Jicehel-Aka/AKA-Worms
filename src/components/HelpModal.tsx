@@ -93,27 +93,15 @@ export const HelpModal: React.FC<HelpModalProps> = ({ isOpen, onClose }) => {
             </p>
           </div>
 
-          {/* Gamebuino AKA & META Modes */}
-          <div className="space-y-3">
-            <div>
-              <div className="flex items-center gap-2 text-sm font-bold text-slate-200 mb-1">
-                <Gamepad2 className="w-4 h-4 text-emerald-400" />
-                <span>Console Gamebuino AKA (ESP32-S3 · 320 × 240)</span>
-              </div>
-              <p className="text-xs text-slate-400 leading-relaxed">
-                Console nouvelle génération animée par un microcontrôleur <strong>ESP32-S3</strong> avec écran couleur <strong>320 × 240 pixels (QVGA)</strong>. Le bouton <strong>Zoom Rapide [Z]</strong> est indispensable pour jauger à la fois la trajectoire globale du terrain (zoom arrière 0.45x) et la visée chirurgicale (zoom avant 1.6x). Supporte le jeu en direct avec PC et Android via Wi-Fi P2P.
-              </p>
+          {/* Gamebuino AKA Mode */}
+          <div>
+            <div className="flex items-center gap-2 text-sm font-bold text-slate-200 mb-1">
+              <Gamepad2 className="w-4 h-4 text-emerald-400" />
+              <span>Console Gamebuino AKA (ESP32-S3 · 320 × 240)</span>
             </div>
-
-            <div>
-              <div className="flex items-center gap-2 text-sm font-bold text-slate-200 mb-1">
-                <Gamepad2 className="w-4 h-4 text-amber-400" />
-                <span>Console Gamebuino META (ATSAMD21 · 160 × 128)</span>
-              </div>
-              <p className="text-xs text-slate-400 leading-relaxed">
-                Microcontrôleur <strong>ATSAMD21 (ARM Cortex M0+ 32-bit, 256KB flash, 32KB RAM)</strong> avec écran 1.8" en <strong>160 × 128 pixels</strong> (couleurs 16-bit RGB565), taux de rafraîchissement paramétrable à <strong>25 FPS ou 50 FPS</strong>, et <strong>8 LEDs NeoPixel latérales</strong> qui réagissent en temps réel aux tirs et explosions !
-              </p>
-            </div>
+            <p className="text-xs text-slate-400 leading-relaxed">
+              Console animée par un microcontrôleur <strong>ESP32-S3</strong> avec écran couleur <strong>320 × 240 pixels (4:3)</strong>. Le bouton <strong>Zoom Rapide [Z]</strong> est indispensable pour jauger à la fois la trajectoire globale du terrain (zoom arrière 0.45x) et la visée chirurgicale (zoom avant 1.6x). Supporte le jeu en direct avec PC et Android via Wi-Fi P2P.
+            </p>
           </div>
         </div>
 

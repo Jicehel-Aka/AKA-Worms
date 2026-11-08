@@ -9,6 +9,7 @@ import {
   Check,
   Gamepad2,
   Sparkles,
+  Eye,
 } from 'lucide-react';
 import { sounds } from '../utils/audio';
 
@@ -24,6 +25,7 @@ interface LobbyModalProps {
   onJoinRoom: (code: string) => void;
   onStartGame: () => void;
   isConnectedPeer: boolean;
+  onOpenGallery?: () => void;
 }
 
 export const LobbyModal: React.FC<LobbyModalProps> = ({
@@ -38,6 +40,7 @@ export const LobbyModal: React.FC<LobbyModalProps> = ({
   onJoinRoom,
   onStartGame,
   isConnectedPeer,
+  onOpenGallery,
 }) => {
   const [joinCodeInput, setJoinCodeInput] = useState('');
   const [copied, setCopied] = useState(false);
@@ -108,7 +111,7 @@ export const LobbyModal: React.FC<LobbyModalProps> = ({
           <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/40 to-transparent flex items-end p-4">
             <div>
               <div className="flex items-center gap-2 mb-1">
-                <span className="font-retro text-xs text-amber-400">GAMEBUINO AKA (ESP32-S3) & META</span>
+                <span className="font-retro text-xs text-emerald-400">GAMEBUINO AKA (ESP32-S3 · 320×240)</span>
                 <span className="text-slate-400 text-xs">·</span>
                 <span className="text-xs text-slate-300">PC & Android Cross-Play</span>
               </div>
@@ -311,10 +314,24 @@ export const LobbyModal: React.FC<LobbyModalProps> = ({
         </div>
 
         {/* Start Game Action */}
-        <div className="flex items-center justify-between pt-4 border-t border-slate-800">
-          <div className="flex items-center gap-2 text-xs text-slate-400">
-            <Gamepad2 className="w-4 h-4 text-emerald-400" />
-            <span>Appuyez sur Z pour zoomer à tout moment</span>
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-4 border-t border-slate-800">
+          <div className="flex items-center gap-3">
+            {onOpenGallery && (
+              <button
+                onClick={() => {
+                  sounds.playMenuClick();
+                  onOpenGallery();
+                }}
+                className="flex items-center gap-2 px-4 py-3 bg-slate-800 hover:bg-slate-700 text-emerald-300 border border-slate-700 rounded-2xl text-xs font-bold transition-all shadow hover:border-emerald-500/50"
+              >
+                <Eye className="w-4 h-4 text-emerald-400" />
+                <span>Explorateur des Cartes & Vers</span>
+              </button>
+            )}
+            <div className="hidden md:flex items-center gap-1.5 text-xs text-slate-400">
+              <Gamepad2 className="w-4 h-4 text-emerald-400" />
+              <span>Zoom Rapide [Z]</span>
+            </div>
           </div>
 
           <button
@@ -322,7 +339,7 @@ export const LobbyModal: React.FC<LobbyModalProps> = ({
               sounds.playMenuClick();
               onStartGame();
             }}
-            className="flex items-center gap-2.5 px-8 py-3.5 bg-emerald-500 hover:bg-emerald-400 active:bg-emerald-600 text-slate-950 font-extrabold text-sm rounded-2xl shadow-xl shadow-emerald-500/25 transition-all transform hover:-translate-y-0.5 active:translate-y-0"
+            className="w-full sm:w-auto flex items-center justify-center gap-2.5 px-8 py-3.5 bg-emerald-500 hover:bg-emerald-400 active:bg-emerald-600 text-slate-950 font-extrabold text-sm rounded-2xl shadow-xl shadow-emerald-500/25 transition-all transform hover:-translate-y-0.5 active:translate-y-0"
           >
             <Play className="w-5 h-5 fill-current" />
             <span>LANCER LA PARTIE</span>
