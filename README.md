@@ -150,3 +150,7 @@ Options : *pré-release*, *brouillon* (conseillé pour une première fois : reli
 ## 📜 Licence
 
 Apache-2.0 (déclarée dans `package.json`). Le fichier `LICENSE` reste à ajouter au dépôt.
+
+## Licence
+
+Création originale de Jicehel (Jean-Charles Lebeau), publiée sous licence **[Creative Commons Attribution - Pas d'Utilisation Commerciale 4.0 (CC BY-NC 4.0)](LICENSE)** : tu peux copier, modifier et partager librement, avec mention de l'auteur, mais pas à des fins commerciales. Le texte complet est dans le fichier [LICENSE](LICENSE). Les bibliothèques et ressources tierces gardent leur propre licence.
